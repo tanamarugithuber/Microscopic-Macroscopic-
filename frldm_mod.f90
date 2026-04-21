@@ -193,7 +193,9 @@ module frldm_mod
                 B_1 = B_1 + this%B_1pot(i) * g_mod%dV
                 B_3 = B_3 + this%B_3pot(i) * g_mod%dV
             end do
-
+            
+            ! B_1 = B_1* real(nucleus%A, dp)**(-2.0_dp / 3.0_dp)
+            ! B_3 = B_3* real(nucleus%A, dp)**(-2.0_dp / 3.0_dp)
 
 
             
