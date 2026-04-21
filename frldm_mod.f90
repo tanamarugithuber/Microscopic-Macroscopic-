@@ -187,8 +187,7 @@ module frldm_mod
             integer :: i
             integer :: n_max
             n_max = g_mod%n_x_points * g_mod%n_y_points * g_mod%n_z_points
-            ! call CG_method(g_mod%n_x_points, g_mod%n_y_points, g_mod%n_z_points, g_mod%h_x, a_Yukawa, this%B_1pot)
-            ! call CG_method(g_mod%n_x_points, g_mod%n_y_points, g_mod%n_z_points, g_mod%h_x, a_den, this%B_3pot)
+            
 
             do i = 1, n_max
                 B_1 = B_1 + this%B_1pot(i) * g_mod%dV
