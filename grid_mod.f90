@@ -70,8 +70,13 @@ module grid_mod
             type(nucleus_property), intent(in) :: nucleus
 
             ! Calculate grid boundaries based on the nucleus size
-            this%nu_x_min = - nint(nucleus%semi1 / this%h_x)
-            this%nu_x_max = nint(nucleus%semi1 / this%h_x)
+            if (nucleus%semi1 >= nucleus%semi2) then
+                this%nu_x_min = - nint(nucleus%semi1 / this%h_x)
+                this%nu_x_max = nint(nucleus%semi1 / this%h_x)
+            else
+                this%nu_x_min = - nint(nucleus%semi2 / this%h_x)
+                this%nu_x_max = nint(nucleus%semi2 / this%h_x)
+            end if
             this%nu_y_min = this%nu_x_min
             this%nu_y_max = this%nu_x_max
             this%nu_z_min = this%nu_x_min
