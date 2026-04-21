@@ -1,4 +1,4 @@
-module frldm_constant_mod
+module frldm_mod
     use iso_fortran_env, only: real64
     use constant_mod, only: e2, pi
     use nucleus_mod, only: nucleus_property
@@ -92,4 +92,4 @@ module frldm_constant_mod
 
 
 
-end module frldm_constant_mod
+end module frldm_mod
