@@ -5,7 +5,7 @@ module frldm_mod
     use grid_mod, only: grid_type
     use three_D_derivative_mod
     use array_conversion_mod
-    use CG_method_mod, only: CG_method
+    use CG_method_mod
     implicit none
     private
 
@@ -124,21 +124,48 @@ module frldm_mod
             real(dp) :: denominator1 
             real(dp) :: denominator3
             real(dp) :: inv_a_den = 1.0_dp / a_den
+            real(dp), allocatable :: pi_rho(:)
+
 
             denominator1 = 8.0_dp * pi**2 * nucleus%R0**2 * a_Yukawa**4
             denominator3 = 32.0_dp * pi**2 * nucleus%R0**5
             allocate(this%B_1pot_y(g_mod%n_points))
             allocate(this%B_3pot_y(g_mod%n_points))
             allocate(this%B_3pot_c(g_mod%n_points))
+
+            ! -4pi*rho
+            allocate(pi_rho(g_mod%n_points))
+            pi_rho = g_mod%density_index* (-4.0_dp * pi )
+
+
+            allocate(helmholtz_matrix(g_mod%n_x_points**3, g_mod%n_x_points**3))
+            call initialize_helmholtz_matrix(g_mod%n_x_points, g_mod%h_x, a_Yukawa, helmholtz_matrix)
+            call CG_method(helmholtz_matrix, pi_rho, this%B_1pot_y)
+
+            call initialize_helmholtz_matrix(g_mod%n_x_points, g_mod%h_x, a_den, helmholtz_matrix)
+            call CG_method(helmholtz_matrix, pi_rho, this%B_3pot_y)
+            deallocate(helmholtz_matrix)
+
+    
+            call initialize_poisson_matrix(g_mod%n_x_points, g_mod%h_x, poisson_matrix)
+            call CG_method(poisson_matrix, pi_rho, this%B_3pot_c)
+            deallocate(poisson_matrix)
+
+            
             do i = 1, g_mod%n_points
                 this%B_1 = this%B_1 + g_mod%density_index(i) *(2*a_Yukawa * this%B_1pot_y(i) - this%B_1exp(i)) * g_mod%dV
                 this%B_3 = this%B_3 + g_mod%density_index(i) * (this%B_3pot_c(i) - this%B_3pot_y(i) - 0.5_dp*this%B_3exp(i)*inv_a_den) * g_mod%dV
             end do
+
             this%B_1 = this%B_1 * real(nucleus%A, dp)**(-2.0_dp / 3.0_dp)/ denominator1
             this%B_3 = this%B_3 * 15.0_dp * real(nucleus%A, dp)**(-5.0_dp / 3.0_dp)/ denominator3
 
-
-
+            deallocate(pi_rho)
+            deallocate(this%B_1pot_y)
+            deallocate(this%B_3pot_y)
+            deallocate(this%B_3pot_c)
+            deallocate(this%B_1exp)
+            deallocate(this%B_3exp)
 
         end subroutine calculate_b_1_b_3
 
@@ -235,5 +262,5 @@ module frldm_mod
             E_frldm = E_v + E_s + E_c + E_cec + E_pffc + E_ca + E_W + E_pair + E_be
 
         end subroutine calculate_frldm_energy
-        
+
 end module frldm_mod
