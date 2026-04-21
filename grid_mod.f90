@@ -43,7 +43,7 @@ module grid_mod
         integer :: n_z_min
         integer :: n_z_max
 
-        integer :: n_times = 3
+        integer :: n_times 
         ! This represents how many times the grid extends beyond the nucleus size. 
         ! For example, if n_times = 2, the grid extends to twice the size of the 
         ! nucleus in each direction.
