@@ -93,9 +93,26 @@ module grid_mod
         end subroutine initialize_grid
 
         subroutine inside_outside_nucleus(this, nucleus, index)
+            
             class(grid_type), intent(in) :: this
             type(nucleus_property), intent(in) :: nucleus
             integer, intent(out) :: index(this%n_x_points, this%n_y_points, this%n_z_points)
+            integer :: i, j, k
+            real(dp) :: x, y, z
+            do k = 1, this%n_z_points
+                z = (this%n_z_min + k - 1) * this%h_z
+                do j = 1, this%n_y_points
+                    y = (this%n_y_min + j - 1) * this%h_y
+                    do i = 1, this%n_x_points
+                        x = (this%n_x_min + i - 1) * this%h_x
+                        if ((x/nucleus%semi1)**2 + (y/nucleus%semi2)**2 + (z/nucleus%semi2)**2 <= 1.0_dp) then
+                            index(i,j,k) = 1 ! inside the nucleus
+                        else
+                            index(i,j,k) = 0 ! outside the nucleus
+                        end if
+                    end do
+                end do
+            end do
 
         end subroutine inside_outside_nucleus
 
