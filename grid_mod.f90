@@ -52,7 +52,7 @@ module grid_mod
         ! Grid points in 3D space can be calculated as (n_x_max - n_x_min + 1) * (n_y_max - n_y_min + 1) * (n_z_max - n_z_min + 1)
         !---------------------------
         real(dp), allocatable :: x(:,:,:)
-        real(dp), allocatable :: density_index(:,:,:) ! density_index(i,j,k) gives the wheather the grid point (i,j,k) is inside the nucleus (1) or outside the nucleus (0). And it can be used as a density if the density is assumed to be constant inside the nucleus and zero outside the nucleus.
+        real(dp), allocatable :: density_index(:) ! density_index(i,j,k) gives the wheather the grid point (i,j,k) is inside the nucleus (1) or outside the nucleus (0). And it can be used as a density if the density is assumed to be constant inside the nucleus and zero outside the nucleus.
 
 
 
@@ -103,8 +103,8 @@ module grid_mod
             
             class(grid_type), intent(in) :: this
             type(nucleus_property), intent(in) :: nucleus
-            real(dp), intent(out) :: index(this%n_x_points, this%n_y_points, this%n_z_points)
-            integer :: i, j, k
+            real(dp), intent(out) :: index(this%n_points)
+            integer :: i, j, k, l
             real(dp) :: x, y, z
             do k = 1, this%n_z_points
                 z = (this%n_z_min + k - 1) * this%h_z
@@ -112,10 +112,11 @@ module grid_mod
                     y = (this%n_y_min + j - 1) * this%h_y
                     do i = 1, this%n_x_points
                         x = (this%n_x_min + i - 1) * this%h_x
+                        l = (k-1)*this%n_x_points*this%n_y_points + (j-1)*this%n_x_points + i
                         if ((x/nucleus%semi1)**2 + (y/nucleus%semi2)**2 + (z/nucleus%semi2)**2 <= 1.0_dp) then
-                            index(i,j,k) = 1.0_dp ! inside the nucleus
+                            index(l) = 1.0_dp ! inside the nucleus
                         else
-                            index(i,j,k) = 0.0_dp ! outside the nucleus
+                            index(l) = 0.0_dp ! outside the nucleus
                         end if
                     end do
                 end do
