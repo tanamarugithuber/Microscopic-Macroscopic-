@@ -52,7 +52,7 @@ module grid_mod
         ! Grid points in 3D space can be calculated as (n_x_max - n_x_min + 1) * (n_y_max - n_y_min + 1) * (n_z_max - n_z_min + 1)
         !---------------------------
         real(dp), allocatable :: x(:,:,:)
-        real(dp), allocatable :: density_index(:,:,:) ! index(i,j,k) gives the wheather the grid point (i,j,k) is inside the nucleus (1) or outside the nucleus (0)
+        real(dp), allocatable :: density_index(:,:,:) ! density_index(i,j,k) gives the wheather the grid point (i,j,k) is inside the nucleus (1) or outside the nucleus (0). And it can be used as a density if the density is assumed to be constant inside the nucleus and zero outside the nucleus.
 
 
 
@@ -91,6 +91,8 @@ module grid_mod
 
             ! Calculate the volume element of the grid
             this%dV = this%h_x * this%h_y * this%h_z
+
+            ! Calculate the total number of grid points and allocate the grid arrays
             this%n_points = (this%n_x_max - this%n_x_min + 1) * (this%n_y_max - this%n_y_min + 1) * (this%n_z_max - this%n_z_min + 1)
             this%n_x_points = this%n_x_max - this%n_x_min + 1
             this%n_y_points = this%n_y_max - this%n_y_min + 1
