@@ -11,9 +11,9 @@ module grid_mod
         !---------------------------
         ! Grid properties
         !---------------------------
-        real(dp) :: h_x = 0.4_dp ! grid spacing in fm
-        real(dp) :: h_y = 0.4_dp ! grid spacing in fm
-        real(dp) :: h_z = 0.4_dp ! grid spacing in fm
+        real(dp) :: h_x  ! grid spacing in fm
+        real(dp) :: h_y  ! grid spacing in fm
+        real(dp) :: h_z  ! grid spacing in fm
         real(dp) :: dV ! grid volume element in fm^3
         integer :: n_points ! total number of grid points
         integer :: n_x_points
