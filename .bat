@@ -1,6 +1,4 @@
-rm *.mod
-rm *.exe
-rm *.o  
+
 gfortran -c constant_mod.f90
 gfortran -c nucleus_mod.f90
 gfortran -c grid_mod.f90
