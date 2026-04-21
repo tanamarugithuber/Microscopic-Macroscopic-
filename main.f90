@@ -13,7 +13,7 @@ program main
     type(frldm_variables) :: frldm
 
     ! Initialize nucleus properties
-    nucleus%A = 8
+    nucleus%N = 8
     nucleus%Z = 8
     nucleus%semi1 = nucleus%R0*nucleus%A**(1.0_dp/3.0_dp)
     call nucleus%calculate_fundamental_properties()
