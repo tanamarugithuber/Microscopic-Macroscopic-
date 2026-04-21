@@ -2,6 +2,9 @@ module frldm_mod
     use iso_fortran_env, only: real64
     use constant_mod, only: e2, pi
     use nucleus_mod, only: nucleus_property
+    use three_D_derivative_mod
+    use array_conversion_mod
+    use CG_method_mod
     implicit none
     private
 
@@ -26,6 +29,7 @@ module frldm_mod
     real(dp), parameter, public :: a_Yukawa = 0.68_dp ! fm, range of Yukawa potential
     real(dp), parameter, public :: r_p = 0.80_dp ! fm, proton root square radius
     real(dp), parameter, public :: a_den = 0.70_dp ! fm, diffuseness of nuclear density distribution
+    real(dp), parameter, public :: a_el = 1.43e-5_dp ! fm, diffuseness of charge distribution
 
     !----------------------------
     ! Third category constants
@@ -52,24 +56,35 @@ module frldm_mod
         real(dp) :: I_n
         real(dp) :: c_1 
         real(dp) :: c_4 
-        real(dp) :: f_kfr_p 
+        real(dp) :: f_kfrp 
         real(dp) :: k_f
         real(dp) :: delta_pn_ave ! neutron-proton pairing correction
         real(dp) :: delta_n_ave ! neutron pairing correction
         real(dp) :: delta_p_ave ! proton pairing correction
         real(dp) :: B_s
+        real(dp) :: B_3
+        real(dp) :: B_1
+        real(dp) :: B_w
+        real(dp) :: E_frldm
 
         contains
-            procedure :: calculate_frldm_variables
+            procedure :: calculate_frldm_energy
+            procedure :: calculate_b_1_b_3
     end type frldm_variables
 
     public :: frldm_variables
 
     contains
-        subroutine calculate_frldm_variables(this, nucleus)
+        subroutine calculate_frldm_energy(this, nucleus, E_frldm)
             class(frldm_variables), intent(inout) :: this
             type(nucleus_property), intent(in) :: nucleus
+            real(dp), intent(out) :: E_frldm
+            real(dp) :: E_v, E_s, E_c, E_cec, E_pffc, E_ca, E_W, E_pair, E_be
 
+
+            !----------------------------
+            ! clculate the FRLDM variables
+            !----------------------------
             this%I_n =real(nucleus%N - nucleus%Z, dp) / real(nucleus%A, dp)
 
             this%c_1 = 0.6_dp * e2 / nucleus%R0
@@ -78,7 +93,7 @@ module frldm_mod
 
             this%k_f = (9.0_dp * pi * real(nucleus%Z, dp) / 4.0_dp / real(nucleus%A, dp))**(1.0_dp / 3.0_dp) / nucleus%R0
 
-            this%f_kfr_p = -0.125_dp * r_p**2 * e2**2 * (145.0_dp/48.0_dp - 327.0_dp*(this%k_f * r_p)**2 / 2880.0_dp + 1527.0d0/1209600.0_dp * (this%k_f * r_p)**4) / nucleus%R0**3
+            this%f_kfrp = -0.125_dp * r_p**2 * e2**2 * (145.0_dp/48.0_dp - 327.0_dp*(this%k_f * r_p)**2 / 2880.0_dp + 1527.0d0/1209600.0_dp * (this%k_f * r_p)**4) / nucleus%R0**3
 
             this%B_s = nucleus%surface_area * real(nucleus%A, dp)**(-2.0_dp / 3.0_dp)/(4.0_dp * pi * nucleus%R0**2)
 
@@ -87,7 +102,86 @@ module frldm_mod
             this%delta_n_ave = r_mac * this%B_s / real(nucleus%N, dp)** (1.0_dp / 3.0_dp)
 
             this%delta_p_ave = r_mac * this%B_s / real(nucleus%Z, dp)** (1.0_dp / 3.0_dp)
-        end subroutine calculate_frldm_variables
+
+            this%B_w = 1.0_dp
+            
+            call this%calculate_b_1_b_3(nucleus, this%B_1, this%B_3)
+
+            !----------------------------
+            ! volume energy
+            !----------------------------
+            E_v = - a_v * (1.0_dp - k_v * this%I_n**2) * real(nucleus%A, dp)
+
+            !----------------------------
+            ! surface energy
+            !----------------------------
+            E_s = a_s * (1.0_dp - k_s * this%I_n**2) * real(nucleus%A, dp)**(2.0_dp / 3.0_dp) * this%B_1
+            
+            !----------------------------
+            ! Coulomb energy
+            !----------------------------
+            E_c = this%c_1 * real(nucleus%Z, dp)**2 / real(nucleus%A, dp)**(1.0_dp / 3.0_dp)*this%B_1
+
+            !----------------------------
+            ! charge exchange correction energy
+            !----------------------------
+            E_cec = this%c_4 * real(nucleus%Z, dp)**(4.0_dp / 3.0_dp) / real(nucleus%A, dp)**(1.0_dp / 3.0_dp)
+
+            !----------------------------
+            ! proton form-factor correction energy
+            !----------------------------
+            E_pffc = this%f_kfrp * real(nucleus%Z, dp)**2 / real(nucleus%A, dp)
+
+            !----------------------------
+            ! charge asymmetry energy
+            !----------------------------
+            E_ca = c_a * (real(nucleus%Z, dp) - real(nucleus%N, dp))
+
+            !----------------------------
+            ! Wigner energy
+            !----------------------------
+            If (nucleus%N == nucleus%Z .and. mod(nucleus%N, 2) == 1) then
+                E_W = (abs(this%I_n)* this%B_w + 1.0_dp/real(nucleus%A, dp))* Wigner
+            else
+                E_W = abs(this%I_n)* this%B_w * Wigner
+            end if
+
+            !----------------------------
+            ! pairing energy
+            !----------------------------
+            if (mod(nucleus%N, 2) == 0 .and. mod(nucleus%Z, 2) == 0) then
+                E_pair = 0
+            else if (mod(nucleus%N, 2) == 1 .and. mod(nucleus%Z, 2) == 1) then
+                E_pair = this%delta_n_ave + this%delta_p_ave - this%delta_pn_ave
+            else if (mod(nucleus%N, 2) == 1 .and. mod(nucleus%Z, 2) == 0) then
+                E_pair = this%delta_n_ave
+            else
+                E_pair = this%delta_p_ave
+            end if
+
+            !----------------------------
+            ! binding energy of electron
+            !----------------------------
+            E_be = a_el * real(nucleus%Z, dp)**(2.39_dp)
+
+
+
+            E_frldm = E_v + E_s + E_c + E_cec + E_pffc + E_ca + E_W + E_pair + E_be
+
+        end subroutine calculate_frldm_energy
+
+        subroutine calculate_b_1_b_3(this, nucleus, B_1, B_3)
+            class(frldm_variables), intent(inout) :: this
+            type(nucleus_property), intent(in) :: nucleus
+            real(dp), intent(out) :: B_1, B_3
+
+            real(dp) :: x, y, z
+            
+
+            !----------------------------
+            ! Calculate the integrands for B_1 and B_3
+            !----------------------------
+        end subroutine calculate_b_1_b_3
 
 
 
