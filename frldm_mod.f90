@@ -2,9 +2,10 @@ module frldm_mod
     use iso_fortran_env, only: real64
     use constant_mod, only: e2, pi
     use nucleus_mod, only: nucleus_property
+    use grid_mod, only: grid_type
     use three_D_derivative_mod
     use array_conversion_mod
-    use CG_method_mod
+    use CG_method_mod, only: CG_method
     implicit none
     private
 
@@ -64,6 +65,8 @@ module frldm_mod
         real(dp) :: B_s
         real(dp) :: B_3
         real(dp) :: B_1
+        real(dp), allocatable :: B_1pot(:)
+        real(dp), allocatable :: B_3pot(:)
         real(dp) :: B_w
         real(dp) :: E_frldm
 
@@ -75,11 +78,14 @@ module frldm_mod
     public :: frldm_variables
 
     contains
-        subroutine calculate_frldm_energy(this, nucleus, E_frldm)
+        subroutine calculate_frldm_energy(this, nucleus, g_mod, E_frldm)
             class(frldm_variables), intent(inout) :: this
             type(nucleus_property), intent(in) :: nucleus
+            type(grid_type), intent(in) :: g_mod
             real(dp), intent(out) :: E_frldm
             real(dp) :: E_v, E_s, E_c, E_cec, E_pffc, E_ca, E_W, E_pair, E_be
+            allocate(this%B_1pot(g_mod%n_x_points * g_mod%n_y_points * g_mod%n_z_points))
+            allocate(this%B_3pot(g_mod%n_x_points * g_mod%n_y_points * g_mod%n_z_points))
 
 
             !----------------------------
@@ -105,7 +111,7 @@ module frldm_mod
 
             this%B_w = 1.0_dp
             
-            call this%calculate_b_1_b_3(nucleus, this%B_1, this%B_3)
+            call this%calculate_b_1_b_3(nucleus,g_mod, this%B_1, this%B_3)
 
             !----------------------------
             ! volume energy
@@ -170,17 +176,35 @@ module frldm_mod
 
         end subroutine calculate_frldm_energy
 
-        subroutine calculate_b_1_b_3(this, nucleus, B_1, B_3)
+
+
+        subroutine calculate_b_1_b_3(this, nucleus,g_mod, B_1, B_3)
             class(frldm_variables), intent(inout) :: this
             type(nucleus_property), intent(in) :: nucleus
+            type(grid_type), intent(in) :: g_mod
             real(dp), intent(out) :: B_1, B_3
+            
+            integer :: i
+            integer :: n_max
+            n_max = g_mod%n_x_points * g_mod%n_y_points * g_mod%n_z_points
+            ! call CG_method(g_mod%n_x_points, g_mod%n_y_points, g_mod%n_z_points, g_mod%h_x, a_Yukawa, this%B_1pot)
+            ! call CG_method(g_mod%n_x_points, g_mod%n_y_points, g_mod%n_z_points, g_mod%h_x, a_den, this%B_3pot)
 
-            real(dp) :: x, y, z
+            do i = 1, n_max
+                B_1 = B_1 + this%B_1pot(i) * g_mod%dV
+                B_3 = B_3 + this%B_3pot(i) * g_mod%dV
+            end do
+
+
+
             
 
             !----------------------------
             ! Calculate the integrands for B_1 and B_3
             !----------------------------
+
+
+
         end subroutine calculate_b_1_b_3
 
 
