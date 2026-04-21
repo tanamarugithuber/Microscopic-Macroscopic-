@@ -11,9 +11,9 @@ module grid_mod
         !---------------------------
         ! Grid properties
         !---------------------------
-        real(dp) :: h_x = 0.1_dp ! grid spacing in fm
-        real(dp) :: h_y = 0.1_dp ! grid spacing in fm
-        real(dp) :: h_z = 0.1_dp ! grid spacing in fm
+        real(dp) :: h_x = 0.4_dp ! grid spacing in fm
+        real(dp) :: h_y = 0.4_dp ! grid spacing in fm
+        real(dp) :: h_z = 0.4_dp ! grid spacing in fm
         real(dp) :: dV ! grid volume element in fm^3
         integer :: n_points ! total number of grid points
         integer :: n_x_points
@@ -25,12 +25,12 @@ module grid_mod
         ! number of grid points from the center to the edge of the nucleus.   
         ! Defined by the size of nucleus.
         !---------------------------
-        integer :: b_x_min
-        integer :: b_x_max
-        integer :: b_y_min
-        integer :: b_y_max
-        integer :: b_z_min
-        integer :: b_z_max
+        integer :: nu_x_min
+        integer :: nu_x_max
+        integer :: nu_y_min
+        integer :: nu_y_max
+        integer :: nu_z_min
+        integer :: nu_z_max
     
 
         !---------------------------
@@ -43,13 +43,22 @@ module grid_mod
         integer :: n_z_min
         integer :: n_z_max
 
-        integer :: n_times = 2
+        integer :: n_times = 3
         ! This represents how many times the grid extends beyond the nucleus size. 
         ! For example, if n_times = 2, the grid extends to twice the size of the 
         ! nucleus in each direction.
 
+        !---------------------------
+        ! Grid points in 3D space can be calculated as (n_x_max - n_x_min + 1) * (n_y_max - n_y_min + 1) * (n_z_max - n_z_min + 1)
+        !---------------------------
+        real(dp), allocatable :: x(:,:,:)
+        integer, allocatable :: index(:,:,:) ! index(i,j,k) gives the wheather the grid point (i,j,k) is inside the nucleus (1) or outside the nucleus (0)
+
+
+
         contains
             procedure :: initialize_grid
+            procedure :: inside_outside_nucleus
     end type grid_type
 
 
@@ -61,19 +70,19 @@ module grid_mod
             type(nucleus_property), intent(in) :: nucleus
 
             ! Calculate grid boundaries based on the nucleus size
-            this%b_x_min = - nint(nucleus%semi1 / this%h_x)
-            this%b_x_max = nint(nucleus%semi1 / this%h_x)
-            this%b_y_min = - nint(nucleus%semi1 / this%h_y)
-            this%b_y_max = nint(nucleus%semi1 / this%h_y)
-            this%b_z_min = - nint(nucleus%semi2 / this%h_z)
-            this%b_z_max = nint(nucleus%semi2 / this%h_z)
+            this%nu_x_min = - nint(nucleus%semi1 / this%h_x)
+            this%nu_x_max = nint(nucleus%semi1 / this%h_x)
+            this%nu_y_min = this%nu_x_min
+            this%nu_y_max = this%nu_x_max
+            this%nu_z_min = this%nu_x_min
+            this%nu_z_max = this%nu_x_max
 
-            this%n_x_min = this%b_x_min * this%n_times
-            this%n_x_max = this%b_x_max * this%n_times
-            this%n_y_min = this%b_y_min * this%n_times
-            this%n_y_max = this%b_y_max * this%n_times
-            this%n_z_min = this%b_z_min * this%n_times
-            this%n_z_max = this%b_z_max * this%n_times
+            this%n_x_min = this%nu_x_min * this%n_times
+            this%n_x_max = this%nu_x_max * this%n_times
+            this%n_y_min = this%nu_y_min * this%n_times
+            this%n_y_max = this%nu_y_max * this%n_times
+            this%n_z_min = this%nu_z_min * this%n_times
+            this%n_z_max = this%nu_z_max * this%n_times
 
             ! Calculate the volume element of the grid
             this%dV = this%h_x * this%h_y * this%h_z
@@ -82,6 +91,13 @@ module grid_mod
             this%n_y_points = this%n_y_max - this%n_y_min + 1
             this%n_z_points = this%n_z_max - this%n_z_min + 1
         end subroutine initialize_grid
+
+        subroutine inside_outside_nucleus(this, nucleus, index)
+            class(grid_type), intent(in) :: this
+            type(nucleus_property), intent(in) :: nucleus
+            integer, intent(out) :: index(this%n_x_points, this%n_y_points, this%n_z_points)
+
+        end subroutine inside_outside_nucleus
 
 
 end module grid_mod
