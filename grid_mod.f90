@@ -93,7 +93,8 @@ module grid_mod
             this%dV = this%h_x * this%h_y * this%h_z
 
             ! Calculate the total number of grid points and allocate the grid arrays
-            this%n_points = (this%n_x_max - this%n_x_min + 1) * (this%n_y_max - this%n_y_min + 1) * (this%n_z_max - this%n_z_min + 1)
+            this%n_points = (this%n_x_max - this%n_x_min + 1) * (this%n_y_max - this%n_y_min + 1) & 
+                            * (this%n_z_max - this%n_z_min + 1)
             this%n_x_points = this%n_x_max - this%n_x_min + 1
             this%n_y_points = this%n_y_max - this%n_y_min + 1
             this%n_z_points = this%n_z_max - this%n_z_min + 1
