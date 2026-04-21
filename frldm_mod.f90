@@ -3,9 +3,8 @@ module frldm_mod
     use constant_mod, only: e2, pi
     use nucleus_mod, only: nucleus_property
     use grid_mod, only: grid_type
-    use three_D_derivative_mod
-    use array_conversion_mod
-    use CG_method_mod
+    use CG_method_mod, only: helmholtz_matrix, poisson_matrix, &
+                         initialize_helmholtz_matrix, initialize_poisson_matrix, CG_method
     implicit none
     private
 
