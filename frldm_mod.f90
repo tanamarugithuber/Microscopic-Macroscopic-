@@ -152,8 +152,10 @@ module frldm_mod
 
             
             do i = 1, g_mod%n_points
-                this%B_1 = this%B_1 + g_mod%density_index(i) *(2*a_Yukawa * this%B_1pot_y(i) - this%B_1exp(i)) * g_mod%dV
-                this%B_3 = this%B_3 + g_mod%density_index(i) * (this%B_3pot_c(i) - this%B_3pot_y(i) - 0.5_dp*this%B_3exp(i)*inv_a_den) * g_mod%dV
+                this%B_1 = this%B_1 + g_mod%density_index(i) *(2*a_Yukawa * this%B_1pot_y(i) - this%B_1exp(i)) &
+                * g_mod%dV
+                this%B_3 = this%B_3 + g_mod%density_index(i) * (this%B_3pot_c(i) - this%B_3pot_y(i) -&
+                 0.5_dp*this%B_3exp(i)*inv_a_den) * g_mod%dV
             end do
 
             this%B_1 = this%B_1 * real(nucleus%A, dp)**(-2.0_dp / 3.0_dp)/ denominator1
@@ -183,9 +185,11 @@ module frldm_mod
 
             this%c_4 = 0.8_dp *(1.5_dp / pi)**(2.0_dp / 3.0_dp) * this%c_1
 
-            this%k_f = (9.0_dp * pi * real(nucleus%Z, dp) / 4.0_dp / real(nucleus%A, dp))**(1.0_dp / 3.0_dp) / nucleus%R0
+            this%k_f = (9.0_dp * pi * real(nucleus%Z, dp) / 4.0_dp / real(nucleus%A, dp))**(1.0_dp / 3.0_dp) &
+            / nucleus%R0
 
-            this%f_kfrp = -0.125_dp * r_p**2 * e2**2 * (145.0_dp/48.0_dp - 327.0_dp*(this%k_f * r_p)**2 / 2880.0_dp + 1527.0d0/1209600.0_dp * (this%k_f * r_p)**4) / nucleus%R0**3
+            this%f_kfrp = -0.125_dp * r_p**2 * e2**2 * (145.0_dp/48.0_dp - 327.0_dp*(this%k_f * r_p)**2 / 2880.0_dp &
+            + 1527.0d0/1209600.0_dp * (this%k_f * r_p)**4) / nucleus%R0**3
 
             this%B_s = nucleus%surface_area * real(nucleus%A, dp)**(-2.0_dp / 3.0_dp)/(4.0_dp * pi * nucleus%R0**2)
 
