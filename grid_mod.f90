@@ -52,7 +52,7 @@ module grid_mod
         ! Grid points in 3D space can be calculated as (n_x_max - n_x_min + 1) * (n_y_max - n_y_min + 1) * (n_z_max - n_z_min + 1)
         !---------------------------
         real(dp), allocatable :: x(:,:,:)
-        integer, allocatable :: index(:,:,:) ! index(i,j,k) gives the wheather the grid point (i,j,k) is inside the nucleus (1) or outside the nucleus (0)
+        real(dp), allocatable :: density_index(:,:,:) ! index(i,j,k) gives the wheather the grid point (i,j,k) is inside the nucleus (1) or outside the nucleus (0)
 
 
 
@@ -101,7 +101,7 @@ module grid_mod
             
             class(grid_type), intent(in) :: this
             type(nucleus_property), intent(in) :: nucleus
-            integer, intent(out) :: index(this%n_x_points, this%n_y_points, this%n_z_points)
+            real(dp), intent(out) :: index(this%n_x_points, this%n_y_points, this%n_z_points)
             integer :: i, j, k
             real(dp) :: x, y, z
             do k = 1, this%n_z_points
@@ -111,9 +111,9 @@ module grid_mod
                     do i = 1, this%n_x_points
                         x = (this%n_x_min + i - 1) * this%h_x
                         if ((x/nucleus%semi1)**2 + (y/nucleus%semi2)**2 + (z/nucleus%semi2)**2 <= 1.0_dp) then
-                            index(i,j,k) = 1 ! inside the nucleus
+                            index(i,j,k) = 1.0_dp ! inside the nucleus
                         else
-                            index(i,j,k) = 0 ! outside the nucleus
+                            index(i,j,k) = 0.0_dp ! outside the nucleus
                         end if
                     end do
                 end do
