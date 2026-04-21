@@ -2,6 +2,7 @@ module CG_method_mod
     use iso_fortran_env, only: real64
 
     implicit none
+    private
     integer, parameter :: dp = real64
     real(dp), allocatable, public :: helmholtz_matrix(:,:)
     real(dp), allocatable, public :: poisson_matrix(:,:)
