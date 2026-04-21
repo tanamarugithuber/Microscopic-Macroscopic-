@@ -28,6 +28,7 @@ program main
     call g_mod%inside_outside_nucleus(nucleus, g_mod%density_index)
 
     ! Calculate FRLDM variables
+    call frldm%calculate_exp(g_mod)
     call frldm%calculate_frldm_energy(nucleus, g_mod, frldm%E_frldm)
 
     print *, "FRLDM Energy: ", frldm%E_frldm

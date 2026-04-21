@@ -68,7 +68,8 @@ module grid_mod
         subroutine initialize_grid(this, nucleus)
             class(grid_type), intent(inout) :: this
             type(nucleus_property), intent(in) :: nucleus
-
+            
+            print *, "Initializing grid based on the nucleus properties..."
             ! Calculate grid boundaries based on the nucleus size
             if (nucleus%semi1 >= nucleus%semi2) then
                 this%nu_x_min = - nint(nucleus%semi1 / this%h_x)
@@ -98,6 +99,8 @@ module grid_mod
             this%n_x_points = this%n_x_max - this%n_x_min + 1
             this%n_y_points = this%n_y_max - this%n_y_min + 1
             this%n_z_points = this%n_z_max - this%n_z_min + 1
+
+            print *, "Grid boundaries and size calculated:"
         end subroutine initialize_grid
 
         subroutine inside_outside_nucleus(this, nucleus, index)
@@ -107,6 +110,7 @@ module grid_mod
             real(dp), intent(out) :: index(this%n_points)
             integer :: i, j, k, l
             real(dp) :: x, y, z
+            print *, "Determining which grid points are inside or outside the nucleus..."
             do k = 1, this%n_z_points
                 z = (this%n_z_min + k - 1) * this%h_z
                 do j = 1, this%n_y_points
@@ -122,6 +126,7 @@ module grid_mod
                     end do
                 end do
             end do
+            print *, "Grid points classified as inside or outside the nucleus."
 
         end subroutine inside_outside_nucleus
 

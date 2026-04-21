@@ -38,6 +38,7 @@ module nucleus_mod
         subroutine calculate_fundamental_properties(this)
             implicit none
             class(nucleus_property), intent(inout) :: this
+            print *, "Calculating fundamental properties of the nucleus..."
 
             this%A = this%N + this%Z
 
@@ -58,6 +59,13 @@ module nucleus_mod
                 this%surface_area = 4.0_dp * pi * this%semi1**2
             end if
             
+            print *, "Nucleus properties calculated:"
+            print *, "A =", this%A
+            print *, "Z =", this%Z
+            print *, "N =", this%N
+            print *, "R_a =", this%R_a
+            print *, "Volume =", this%volume
+            print *, "Surface Area =", this%surface_area
         end subroutine calculate_fundamental_properties
 
 

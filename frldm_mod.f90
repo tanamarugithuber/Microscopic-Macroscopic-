@@ -85,15 +85,16 @@ module frldm_mod
     public :: frldm_variables
 
     contains
-        subroutine calculate_exp(this, nucleus, g_mod)
+        subroutine calculate_exp(this, g_mod)
             class(frldm_variables), intent(inout) :: this
-            type(nucleus_property), intent(in) :: nucleus
+            
             type(grid_type), intent(in) :: g_mod
 
             integer :: i, j, k, l, n_max
             real(dp) :: a_Yukawa_inv = 1.0_dp / a_Yukawa
             real(dp) :: a_den_inv = 1.0_dp / a_den
             real(dp) :: x, y, z
+            print *, "Calculating exponential factors for the surface and Coulomb energy..."
             n_max = g_mod%n_points
 
 
@@ -111,6 +112,7 @@ module frldm_mod
                     end do
                 end do
             end do
+            print *, "Exponential factors calculated."
         end subroutine calculate_exp
 
         subroutine calculate_b_1_b_3(this, nucleus,g_mod)
@@ -124,7 +126,7 @@ module frldm_mod
             real(dp) :: denominator3
             real(dp) :: inv_a_den = 1.0_dp / a_den
             real(dp), allocatable :: pi_rho(:)
-
+            print *, "Calculating B_1 and B_3 for the FRLDM..."
 
             denominator1 = 8.0_dp * pi**2 * nucleus%R0**2 * a_Yukawa**4
             denominator3 = 32.0_dp * pi**2 * nucleus%R0**5
@@ -167,6 +169,7 @@ module frldm_mod
             deallocate(this%B_3pot_c)
             deallocate(this%B_1exp)
             deallocate(this%B_3exp)
+            print *, "B_1 and B_3 calculated."
 
         end subroutine calculate_b_1_b_3
 
@@ -176,6 +179,7 @@ module frldm_mod
             type(grid_type), intent(in) :: g_mod
             real(dp), intent(out) :: E_frldm
             real(dp) :: E_v, E_s, E_c, E_cec, E_pffc, E_ca, E_W, E_pair, E_be
+            print *, "Calculating FRLDM energy for the nucleus..."
             !----------------------------
             ! clculate the FRLDM variables
             !----------------------------
@@ -263,7 +267,7 @@ module frldm_mod
 
 
             E_frldm = E_v + E_s + E_c + E_cec + E_pffc + E_ca + E_W + E_pair + E_be
-
+                print *, "FRLDM energy calculated."
         end subroutine calculate_frldm_energy
 
 end module frldm_mod

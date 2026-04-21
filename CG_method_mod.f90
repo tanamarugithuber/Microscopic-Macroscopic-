@@ -57,6 +57,8 @@ contains
         
         integer :: i, j, k, row
         real(dp) :: h2inv
+
+        print *, "Initializing Helmholtz matrix for the grid..."
         
         h2inv = 1.0_dp / (12.0_dp * h_x * h_x)
         A = 0.0_dp
@@ -91,6 +93,7 @@ contains
                 end do
             end do
         end do
+        print *, "Helmholtz matrix initialized."
     end subroutine initialize_helmholtz_matrix
 
     subroutine initialize_poisson_matrix(n_x, h_x, A)
@@ -101,7 +104,7 @@ contains
         
         integer :: i, j, k, row
         real(dp) :: h2inv
-        
+        print *, "Initializing Poisson matrix for the grid..."
         h2inv = 1.0_dp / (h_x * h_x)
         A = 0.0_dp
 
@@ -129,14 +132,10 @@ contains
                 end do
             end do
         end do
+        print *, "Poisson matrix initialized."
     end subroutine initialize_poisson_matrix
 
     
-
-
-
-
-
     subroutine CG_method(A,b,x)
         implicit none
         real(dp), intent(in) :: A(:,:)
@@ -149,6 +148,7 @@ contains
         real(dp) :: alpha, beta
 
         integer :: n
+        print *, "Starting Conjugate Gradient method..."
         n = size(b)
 
         tol = 1.0e-20_dp
@@ -174,13 +174,19 @@ contains
 
             beta = dot_product(r(:), r(:)) / dot_product(p(:), temp(:)) ! update beta
             p(:) = r(:) + beta * p(:) ! update search direction
+
+            print *, "CG iteration ", iter
         end do
 
-
+        if (iter > max_iter) then
+            print *, "CG did not converge within the maximum number of iterations."
+        end if
+        deallocate(temp, r, p)
+        print *, "Conjugate Gradient method finished."
     end subroutine CG_method
 
     
-
+    
 
 
 
