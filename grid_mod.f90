@@ -117,8 +117,8 @@ module grid_mod
                     y = (this%n_y_min + j - 1) * this%h_y
                     do i = 1, this%n_x_points
                         x = (this%n_x_min + i - 1) * this%h_x
-                        l = (k-1)*this%n_x_points*this%n_y_points + (j-1)*this%n_x_points + i
-                        if ((x/nucleus%semi1)**2 + (y/nucleus%semi2)**2 + (z/nucleus%semi2)**2 <= 1.0_dp) then
+                        l = (k-1)*this%n_z_points*this%n_y_points + (j-1)*this%n_x_points + i
+                        if ((x/nucleus%semi1)**2 + (y/nucleus%semi1)**2 + (z/nucleus%semi2)**2 <= 1.0_dp) then
                             index(l) = 1.0_dp ! inside the nucleus
                         else
                             index(l) = 0.0_dp ! outside the nucleus
@@ -126,6 +126,8 @@ module grid_mod
                     end do
                 end do
             end do
+            print *, "Number of grid points inside the nucleus: ", count(index == 1.0_dp)
+            print *, "Number of grid points:", this%n_points
             print *, "Grid points classified as inside or outside the nucleus."
 
         end subroutine inside_outside_nucleus

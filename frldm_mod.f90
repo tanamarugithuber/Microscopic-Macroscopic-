@@ -142,12 +142,15 @@ module frldm_mod
             allocate(helmholtz_matrix(g_mod%n_x_points**3, g_mod%n_x_points**3))
             call initialize_helmholtz_matrix(g_mod%n_x_points, g_mod%h_x, a_Yukawa, helmholtz_matrix)
             call CG_method(helmholtz_matrix, pi_rho, this%B_1pot_y)
+            deallocate(helmholtz_matrix)
+
+            allocate(helmholtz_matrix(g_mod%n_x_points**3, g_mod%n_x_points**3))
 
             call initialize_helmholtz_matrix(g_mod%n_x_points, g_mod%h_x, a_den, helmholtz_matrix)
             call CG_method(helmholtz_matrix, pi_rho, this%B_3pot_y)
             deallocate(helmholtz_matrix)
 
-    
+            allocate(poisson_matrix(g_mod%n_x_points**3, g_mod%n_x_points**3))
             call initialize_poisson_matrix(g_mod%n_x_points, g_mod%h_x, poisson_matrix)
             call CG_method(poisson_matrix, pi_rho, this%B_3pot_c)
             deallocate(poisson_matrix)

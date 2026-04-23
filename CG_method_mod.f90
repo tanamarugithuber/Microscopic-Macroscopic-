@@ -142,7 +142,7 @@ contains
         real(dp), intent(in) :: b(:)
         real(dp), intent(out) :: x(:)
         real(dp) :: tol ! tolerance for convergence
-        integer, parameter :: max_iter = 100000
+        integer, parameter :: max_iter = 10000
         integer  :: iter
         real(dp), allocatable :: temp(:), r(:), p(:)
         real(dp) :: alpha, beta
@@ -175,14 +175,17 @@ contains
             beta = dot_product(r(:), r(:)) / dot_product(p(:), temp(:)) ! update beta
             p(:) = r(:) + beta * p(:) ! update search direction
 
-            print *, "CG iteration ", iter
+            if (mod(iter, 100) == 0) then
+                print *, "CG iteration ", iter, ": residual norm = ", sqrt(dot_product(r(:), r(:)))
+            end if
         end do
 
         if (iter > max_iter) then
             print *, "CG did not converge within the maximum number of iterations."
         end if
-        deallocate(temp, r, p)
         print *, "Conjugate Gradient method finished."
+        print *, "Final residual norm: ", sqrt(dot_product(r(:), r(:)))
+        deallocate(temp, r, p)
     end subroutine CG_method
 
     

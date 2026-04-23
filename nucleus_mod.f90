@@ -12,9 +12,10 @@ module nucleus_mod
         !---------------------------
         ! Nucleus fundamental properties
         !---------------------------
-        integer :: A  ! mass number
+        
         integer :: Z  ! proton number
         integer :: N  ! neutron number
+        integer :: A  ! mass number
         real(dp) :: R0 = 1.16_dp ! fm, radius parameter
         real(dp) :: R_a ! fm, average radius
 
@@ -47,16 +48,19 @@ module nucleus_mod
             this%volume = (4.0_dp / 3.0_dp) * pi * this%R_a**3
 
             this%semi2 = this%volume / (4.0_dp / 3.0_dp * pi * this%semi1**2)
-
-            if (this%semi1 > this%semi2) then
+            if (this%semi1 <= 0.0_dp) then
+                stop "calculate_fundamental_properties: semi1 must be positive"
+            else if (this%semi1 == this%R_a) then
+                this%ecc = 0.0_dp
+                this%surface_area = 4.0_dp * pi * this%R_a**2
+                this%semi2 = this%R_a
+                this%volume = (4.0_dp / 3.0_dp) * pi * this%R_a**3
+            else if (this%semi1 > this%semi2) then
                 this%ecc = sqrt(1.0_dp - (this%semi2 / this%semi1)**2)
                 this%surface_area = 2.0_dp * pi * (this%semi1**2 + this%semi1*this%semi2 * asin(this%ecc) / this%ecc)
             else if (this%semi1 < this%semi2) then
                 this%ecc = sqrt(1.0_dp - (this%semi1 / this%semi2)**2)
                 this%surface_area = 2.0_dp * pi * (this%semi1**2 + this%semi2**2 * atanh(this%ecc) / this%ecc)
-            else
-                this%ecc = 0.0_dp
-                this%surface_area = 4.0_dp * pi * this%semi1**2
             end if
             
             print *, "Nucleus properties calculated:"
