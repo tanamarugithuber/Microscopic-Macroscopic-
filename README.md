@@ -7,7 +7,7 @@
 
 
 ## 各moduleの依存関係
-micro_constant_mod.f90 -----------------------| 
+
 constant_mod.f90-nucleus_mod.f90-grid_mod.f90-|-micro_mod.f90-|
                               |                               |-main.f90
                               |-frldm_mod.f90-----------------|
