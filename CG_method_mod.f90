@@ -142,7 +142,7 @@ contains
         real(dp), intent(in) :: b(:)
         real(dp), intent(out) :: x(:)
         real(dp) :: tol ! tolerance for convergence
-        integer, parameter :: max_iter = 10000
+        integer, parameter :: max_iter = 100000
         integer  :: iter
         real(dp), allocatable :: temp(:), r(:), p(:)
         real(dp) :: alpha, beta
