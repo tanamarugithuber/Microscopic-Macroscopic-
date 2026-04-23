@@ -60,36 +60,50 @@ contains
 
         print *, "Initializing Helmholtz matrix for the grid..."
         
-        h2inv = 1.0_dp / (12.0_dp * h_x * h_x)
+        h2inv = 1.0_dp / (5040.0_dp * h_x * h_x)
         A = 0.0_dp
 
-        ! 3次元格子でループを回す
+        ! loop over the 3Dgrid points
+        ! 9points finite difference formula for the second derivative in 3D
         do k = 1, n_x
             do j = 1, n_x
                 do i = 1, n_x
-                    ! 現在のグリッド点の1次元インデックス（行番号）
+                    ! current grid point's 1D index (row number)
                     row = (k-1)*n_x*n_x + (j-1)*n_x + i
                     
-                    ! --- 対角成分 ---
-                    A(row, row) = -90.0_dp * h2inv - 1.0_dp / coeff**2
+                    ! --- diagonal element ---
+                    A(row, row) = -43050.0_dp * h2inv - 1.0_dp / coeff**2
                     
-                    ! --- X方向の隣接点 ---
-                    if (i+1 <= n_x) A(row + 1, row)     = 16.0_dp * h2inv
-                    if (i-1 >= 1)   A(row - 1, row)     = 16.0_dp * h2inv
-                    if (i+2 <= n_x) A(row + 2, row)     = -1.0_dp * h2inv
-                    if (i-2 >= 1)   A(row - 2, row)     = -1.0_dp * h2inv
+                    ! --- X direction neighbors ---
+                    if (i+1 <= n_x) A(row + 1, row)     = 80640.0_dp * h2inv
+                    if (i-1 >= 1)   A(row - 1, row)     = 80640.0_dp * h2inv
+                    if (i+2 <= n_x) A(row + 2, row)     = -1008.0_dp * h2inv
+                    if (i-2 >= 1)   A(row - 2, row)     = -1008.0_dp * h2inv   
+                    if (i+3 <= n_x) A(row + 3, row)     = 128.0_dp * h2inv
+                    if (i-3 >= 1)   A(row - 3, row)     = 128.0_dp * h2inv
+                    if (i+4 <= n_x) A(row + 4, row)     = -9.0_dp * h2inv
+                    if (i-4 >= 1)   A(row - 4, row)     = -9.0_dp * h2inv
+
+                    ! --- Y direction neighbors ---
+                    if (j+1 <= n_x) A(row + n_x, row)   = 80640.0_dp * h2inv
+                    if (j-1 >= 1)   A(row - n_x, row)   = 80640.0_dp * h2inv
+                    if (j+2 <= n_x) A(row + 2*n_x, row) = -1008.0_dp * h2inv
+                    if (j-2 >= 1)   A(row - 2*n_x, row) = -1008.0_dp * h2inv
+                    if (j+3 <= n_x) A(row + 3*n_x, row) = 128.0_dp * h2inv
+                    if (j-3 >= 1)   A(row - 3*n_x, row) = 128.0_dp * h2inv
+                    if (j+4 <= n_x) A(row + 4*n_x, row) = -9.0_dp * h2inv
+                    if (j-4 >= 1)   A(row - 4*n_x, row) = -9.0_dp * h2inv
+
+                    ! --- Z direction neighbors ---
+                    if (k+1 <= n_x) A(row + n_x*n_x, row)   = 80640.0_dp * h2inv
+                    if (k-1 >= 1)   A(row - n_x*n_x, row)   = 80640.0_dp * h2inv
+                    if (k+2 <= n_x) A(row + 2*n_x*n_x, row) = -1008.0_dp * h2inv
+                    if (k-2 >= 1)   A(row - 2*n_x*n_x, row) = -1008.0_dp * h2inv
+                    if (k+3 <= n_x) A(row + 3*n_x*n_x, row) = 128.0_dp * h2inv
+                    if (k-3 >= 1)   A(row - 3*n_x*n_x, row) = 128.0_dp * h2inv
+                    if (k+4 <= n_x) A(row + 4*n_x*n_x, row) = -9.0_dp * h2inv
+                    if (k-4 >= 1)   A(row - 4*n_x*n_x, row) = -9.0_dp * h2inv
                     
-                    ! --- Y方向の隣接点 ---
-                    if (j+1 <= n_x) A(row + n_x, row)   = 16.0_dp * h2inv
-                    if (j-1 >= 1)   A(row - n_x, row)   = 16.0_dp * h2inv
-                    if (j+2 <= n_x) A(row + 2*n_x, row) = -1.0_dp * h2inv
-                    if (j-2 >= 1)   A(row - 2*n_x, row) = -1.0_dp * h2inv
-                    
-                    ! --- Z方向の隣接点 ---
-                    if (k+1 <= n_x) A(row + n_x*n_x, row)   = 16.0_dp * h2inv
-                    if (k-1 >= 1)   A(row - n_x*n_x, row)   = 16.0_dp * h2inv
-                    if (k+2 <= n_x) A(row + 2*n_x*n_x, row) = -1.0_dp * h2inv
-                    if (k-2 >= 1)   A(row - 2*n_x*n_x, row) = -1.0_dp * h2inv
                 end do
             end do
         end do
@@ -105,30 +119,49 @@ contains
         integer :: i, j, k, row
         real(dp) :: h2inv
         print *, "Initializing Poisson matrix for the grid..."
-        h2inv = 1.0_dp / (h_x * h_x)
+        h2inv = 1.0_dp / (5040.0_dp * h_x * h_x)
         A = 0.0_dp
 
-        ! 3次元格子でループを回す
+        ! loop over the 3Dgrid points
         do k = 1, n_x
             do j = 1, n_x
                 do i = 1, n_x
-                    ! 現在のグリッド点の1次元インデックス（行番号）
+                    ! current grid point's 1D index (row number)
                     row = (k-1)*n_x*n_x + (j-1)*n_x + i
+
+                    ! --- diagonal element ---
+                    A(row, row) = -43050.0_dp * h2inv
+
+                    ! --- x direction neighbors ---
+                    if (i+1 <= n_x) A(row + 1, row)     = 80640.0_dp * h2inv
+                    if (i-1 >= 1)   A(row - 1, row)     = 80640.0_dp * h2inv
+                    if (i+2 <= n_x) A(row + 2, row)     = -1008.0_dp * h2inv
+                    if (i-2 >= 1)   A(row - 2, row)     = -1008.0_dp * h2inv
+                    if (i+3 <= n_x) A(row + 3, row)     = 128.0_dp * h2inv
+                    if (i-3 >= 1)   A(row - 3, row)     = 128.0_dp * h2inv
+                    if (i+4 <= n_x) A(row + 4, row)     = -9.0_dp * h2inv
+                    if (i-4 >= 1)   A(row - 4, row)     = -9.0_dp * h2inv
+
+                    ! --- y direction neighbors ---
+                    if (j+1 <= n_x) A(row + n_x, row)   = 80640.0_dp * h2inv
+                    if (j-1 >= 1)   A(row - n_x, row)   = 80640.0_dp * h2inv
+                    if (j+2 <= n_x) A(row + 2*n_x, row) = -1008.0_dp * h2inv
+                    if (j-2 >= 1)   A(row - 2*n_x, row) = -1008.0_dp * h2inv
+                    if (j+3 <= n_x) A(row + 3*n_x, row) = 128.0_dp * h2inv
+                    if (j-3 >= 1)   A(row - 3*n_x, row) = 128.0_dp * h2inv
+                    if (j+4 <= n_x) A(row + 4*n_x, row) = -9.0_dp * h2inv
+                    if (j-4 >= 1)   A(row - 4*n_x, row) = -9.0_dp * h2inv
+
+                    ! --- z direction neighbors ---
+                    if (k+1 <= n_x) A(row + n_x*n_x, row)   = 80640.0_dp * h2inv
+                    if (k-1 >= 1)   A(row - n_x*n_x, row)   = 80640.0_dp * h2inv
+                    if (k+2 <= n_x) A(row + 2*n_x*n_x, row) = -1008.0_dp * h2inv
+                    if (k-2 >= 1)   A(row - 2*n_x*n_x, row) = -1008.0_dp * h2inv
+                    if (k+3 <= n_x) A(row + 3*n_x*n_x, row) = 128.0_dp * h2inv
+                    if (k-3 >= 1)   A(row - 3*n_x*n_x, row) = 128.0_dp * h2inv
+                    if (k+4 <= n_x) A(row + 4*n_x*n_x, row) = -9.0_dp * h2inv
+                    if (k-4 >= 1)   A(row - 4*n_x*n_x, row) = -9.0_dp * h2inv
                     
-                    ! --- 対角成分 ---
-                    A(row, row) = -6.0_dp * h2inv
-                    
-                    ! --- X方向の隣接点 ---
-                    if (i+1 <= n_x) A(row + 1, row)     = h2inv
-                    if (i-1 >= 1)   A(row - 1, row)     = h2inv
-                    
-                    ! --- Y方向の隣接点 ---
-                    if (j+1 <= n_x) A(row + n_x, row)   = h2inv
-                    if (j-1 >= 1)   A(row - n_x, row)   = h2inv
-                    
-                    ! --- Z方向の隣接点 ---
-                    if (k+1 <= n_x) A(row + n_x*n_x, row)   = h2inv
-                    if (k-1 >= 1)   A(row - n_x*n_x, row)   = h2inv
                 end do
             end do
         end do

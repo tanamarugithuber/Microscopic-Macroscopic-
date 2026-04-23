@@ -100,6 +100,15 @@ module grid_mod
             this%n_y_points = this%n_y_max - this%n_y_min + 1
             this%n_z_points = this%n_z_max - this%n_z_min + 1
 
+            print *, "Grid boundaries calculated:"
+            print *, "n_x_min: ", this%n_x_min, " n_x_max: ", this%n_x_max
+            print *, "n_y_min: ", this%n_y_min, " n_y_max: ", this%n_y_max
+            print *, "n_z_min: ", this%n_z_min, " n_z_max: ", this%n_z_max
+            print *, "Total number of grid points calculated for x direction: ", this%n_x_points
+            print *, "Total number of grid points calculated for y direction: ", this%n_y_points
+            print *, "Total number of grid points calculated for z direction: ", this%n_z_points
+            print *, "Total number of grid points: ", this%n_points
+
             print *, "Grid boundaries and size calculated:"
         end subroutine initialize_grid
 

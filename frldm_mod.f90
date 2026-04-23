@@ -70,8 +70,8 @@ module frldm_mod
         ! coulomb potential
         real(dp), allocatable :: B_3pot_c(:)
         ! exponential factors for the surface and Coulomb energy
-        real(dp), allocatable :: B_1exp(:)
-        real(dp), allocatable :: B_3exp(:)
+        real(dp), allocatable :: B_1exp(:,:,:)
+        real(dp), allocatable :: B_3exp(:,:,:)
 
         real(dp) :: B_w
         real(dp) :: E_frldm
@@ -90,25 +90,24 @@ module frldm_mod
             
             type(grid_type), intent(in) :: g_mod
 
-            integer :: i, j, k, l, n_max
+            integer :: i, j, k, l,m,n,o, n_x, n_y, n_z
             real(dp) :: a_Yukawa_inv = 1.0_dp / a_Yukawa
             real(dp) :: a_den_inv = 1.0_dp / a_den
             real(dp) :: x, y, z
             print *, "Calculating exponential factors for the surface and Coulomb energy..."
-            n_max = g_mod%n_points
+            
 
+            allocate(this%B_1exp(g_mod%n_x_min*2:g_mod%n_x_max*2, g_mod%n_y_min*2:g_mod%n_y_max*2, g_mod%n_z_min*2:g_mod%n_z_max*2))
+            allocate(this%B_3exp(g_mod%n_x_min*2:g_mod%n_x_max*2, g_mod%n_y_min*2:g_mod%n_y_max*2, g_mod%n_z_min*2:g_mod%n_z_max*2))
+            do k = g_mod%n_z_min*2, g_mod%n_z_max*2
+                z = k * g_mod%h_z
+                do j = g_mod%n_y_min*2, g_mod%n_y_max*2
+                    y = j * g_mod%h_y
+                    do i = g_mod%n_x_min*2, g_mod%n_x_max*2
+                        x = i * g_mod%h_x
+                        this%B_1exp(i,j,k) = exp(- sqrt(x**2 + y**2 + z**2) * a_Yukawa_inv)
+                        this%B_3exp(i,j,k) = exp(- sqrt(x**2 + y**2 + z**2) * a_den_inv)
 
-            allocate(this%B_1exp(n_max))
-            allocate(this%B_3exp(n_max))
-            do k = 1, g_mod%n_z_points
-                z = (g_mod%n_z_min + k - 1) * g_mod%h_z
-                do j = 1, g_mod%n_y_points
-                    y = (g_mod%n_y_min + j - 1) * g_mod%h_y
-                    do i = 1, g_mod%n_x_points
-                        x = (g_mod%n_x_min + i - 1) * g_mod%h_x
-                        l = (k-1)*g_mod%n_x_points*g_mod%n_y_points + (j-1)*g_mod%n_x_points + i
-                        this%B_1exp(l) = exp(- (x**2 + y**2 + z**2) * a_Yukawa_inv)
-                        this%B_3exp(l) = exp(- (x**2 + y**2 + z**2) * a_den_inv)
                     end do
                 end do
             end do
@@ -120,7 +119,7 @@ module frldm_mod
             type(nucleus_property), intent(in) :: nucleus
             type(grid_type), intent(in) :: g_mod
             
-            integer :: i
+            integer :: i, j, k, l,m,n,o,p
             integer :: n_max
             real(dp) :: denominator1 
             real(dp) :: denominator3
@@ -130,48 +129,60 @@ module frldm_mod
 
             denominator1 = 8.0_dp * pi**2 * nucleus%R0**2 * a_Yukawa**4
             denominator3 = 32.0_dp * pi**2 * nucleus%R0**5
-            allocate(this%B_1pot_y(g_mod%n_points))
-            allocate(this%B_3pot_y(g_mod%n_points))
-            allocate(this%B_3pot_c(g_mod%n_points))
+            ! allocate(this%B_1pot_y(g_mod%n_points))
+            ! allocate(this%B_3pot_y(g_mod%n_points))
+            ! allocate(this%B_3pot_c(g_mod%n_points))
 
-            ! -4pi*rho
-            allocate(pi_rho(g_mod%n_points))
-            pi_rho = g_mod%density_index* (-4.0_dp * pi )
+            ! ! -4pi*rho
+            ! allocate(pi_rho(g_mod%n_points))
+            ! pi_rho = g_mod%density_index* (-4.0_dp * pi )
 
 
-            allocate(helmholtz_matrix(g_mod%n_x_points**3, g_mod%n_x_points**3))
-            call initialize_helmholtz_matrix(g_mod%n_x_points, g_mod%h_x, a_Yukawa, helmholtz_matrix)
-            call CG_method(helmholtz_matrix, pi_rho, this%B_1pot_y)
-            deallocate(helmholtz_matrix)
+            ! allocate(helmholtz_matrix(g_mod%n_x_points**3, g_mod%n_x_points**3))
+            ! call initialize_helmholtz_matrix(g_mod%n_x_points, g_mod%h_x, a_Yukawa, helmholtz_matrix)
+            ! call CG_method(helmholtz_matrix, pi_rho, this%B_1pot_y)
+            ! deallocate(helmholtz_matrix)
 
-            allocate(helmholtz_matrix(g_mod%n_x_points**3, g_mod%n_x_points**3))
+            ! allocate(helmholtz_matrix(g_mod%n_x_points**3, g_mod%n_x_points**3))
 
-            call initialize_helmholtz_matrix(g_mod%n_x_points, g_mod%h_x, a_den, helmholtz_matrix)
-            call CG_method(helmholtz_matrix, pi_rho, this%B_3pot_y)
-            deallocate(helmholtz_matrix)
+            ! call initialize_helmholtz_matrix(g_mod%n_x_points, g_mod%h_x, a_den, helmholtz_matrix)
+            ! call CG_method(helmholtz_matrix, pi_rho, this%B_3pot_y)
+            ! deallocate(helmholtz_matrix)
 
-            allocate(poisson_matrix(g_mod%n_x_points**3, g_mod%n_x_points**3))
-            call initialize_poisson_matrix(g_mod%n_x_points, g_mod%h_x, poisson_matrix)
-            call CG_method(poisson_matrix, pi_rho, this%B_3pot_c)
-            deallocate(poisson_matrix)
+            ! allocate(poisson_matrix(g_mod%n_x_points**3, g_mod%n_x_points**3))
+            ! call initialize_poisson_matrix(g_mod%n_x_points, g_mod%h_x, poisson_matrix)
+            ! call CG_method(poisson_matrix, pi_rho, this%B_3pot_c)
+            ! deallocate(poisson_matrix)
 
+            ! call this%calculate_exp(g_mod)
             
-            do i = 1, g_mod%n_points
-                this%B_1 = this%B_1 + g_mod%density_index(i) *(2*a_Yukawa * this%B_1pot_y(i) - this%B_1exp(i)) &
-                * g_mod%dV
-                this%B_3 = this%B_3 + g_mod%density_index(i) * (this%B_3pot_c(i) - this%B_3pot_y(i) -&
-                 0.5_dp*this%B_3exp(i)*inv_a_den) * g_mod%dV
-            end do
+
+            ! do k = 1 , g_mod%n_z_points
+            !     do j = 1, g_mod%n_y_points
+            !         do i = 1, g_mod%n_x_points
+            !             o = (k-1)*g_mod%n_x_points*g_mod%n_y_points + (j-1)*g_mod%n_x_points + i
+            !             do n = 1, g_mod%n_z_points
+            !                 do m = 1, g_mod%n_y_points
+            !                     do l = 1, g_mod%n_x_points
+            !                         this%B_1 = this%B_1 - this%B_1exp(i-l, j-m, k-n)
+            !                         this%
+            !                     end do
+            !                 end do
+            !             end do
+            !         end do
+            !     end do
+            ! end do
+
 
             this%B_1 = this%B_1 * real(nucleus%A, dp)**(-2.0_dp / 3.0_dp)/ denominator1
             this%B_3 = this%B_3 * 15.0_dp * real(nucleus%A, dp)**(-5.0_dp / 3.0_dp)/ denominator3
 
-            deallocate(pi_rho)
-            deallocate(this%B_1pot_y)
-            deallocate(this%B_3pot_y)
-            deallocate(this%B_3pot_c)
-            deallocate(this%B_1exp)
-            deallocate(this%B_3exp)
+            ! deallocate(pi_rho)
+            ! deallocate(this%B_1pot_y)
+            ! deallocate(this%B_3pot_y)
+            ! deallocate(this%B_3pot_c)
+            ! deallocate(this%B_1exp)
+            ! deallocate(this%B_3exp)
             print *, "B_1 and B_3 calculated."
 
         end subroutine calculate_b_1_b_3
