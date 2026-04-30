@@ -32,10 +32,10 @@ program main
     call nucleus%calculate_fundamental_properties()
 
     ! Initialize grid
-    g_mod%h_x = 0.4_dp
-    g_mod%h_y = 0.4_dp
-    g_mod%h_z = 0.4_dp
-    g_mod%n_times = 2
+    g_mod%h_x = 0.5_dp
+    g_mod%h_y = 0.5_dp
+    g_mod%h_z = 0.5_dp
+    g_mod%n_times = 5
     call g_mod%initialize_grid(nucleus)
     allocate(g_mod%density_index(g_mod%n_points))
     call g_mod%inside_outside_nucleus(nucleus, g_mod%density_index)

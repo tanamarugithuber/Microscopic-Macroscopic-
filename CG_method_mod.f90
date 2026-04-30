@@ -12,6 +12,8 @@ module CG_method_mod
     public :: mat_to_vec
     public :: initialize_helmholtz_matrix
     public :: initialize_poisson_matrix
+    public :: CG_method_helmholtz_EQ
+    public :: helmholtz_x
 
     ! public :: index_3D_to_1D
     
@@ -75,8 +77,8 @@ contains
                     A(row, row) = -43050.0_dp * h2inv - 1.0_dp / coeff**2
                     
                     ! --- X direction neighbors ---
-                    if (i+1 <= n_x) A(row + 1, row)     = 80640.0_dp * h2inv
-                    if (i-1 >= 1)   A(row - 1, row)     = 80640.0_dp * h2inv
+                    if (i+1 <= n_x) A(row + 1, row)     = 8064.0_dp * h2inv
+                    if (i-1 >= 1)   A(row - 1, row)     = 8064.0_dp * h2inv
                     if (i+2 <= n_x) A(row + 2, row)     = -1008.0_dp * h2inv
                     if (i-2 >= 1)   A(row - 2, row)     = -1008.0_dp * h2inv   
                     if (i+3 <= n_x) A(row + 3, row)     = 128.0_dp * h2inv
@@ -85,8 +87,8 @@ contains
                     if (i-4 >= 1)   A(row - 4, row)     = -9.0_dp * h2inv
 
                     ! --- Y direction neighbors ---
-                    if (j+1 <= n_x) A(row + n_x, row)   = 80640.0_dp * h2inv
-                    if (j-1 >= 1)   A(row - n_x, row)   = 80640.0_dp * h2inv
+                    if (j+1 <= n_x) A(row + n_x, row)   = 8064.0_dp * h2inv
+                    if (j-1 >= 1)   A(row - n_x, row)   = 8064.0_dp * h2inv
                     if (j+2 <= n_x) A(row + 2*n_x, row) = -1008.0_dp * h2inv
                     if (j-2 >= 1)   A(row - 2*n_x, row) = -1008.0_dp * h2inv
                     if (j+3 <= n_x) A(row + 3*n_x, row) = 128.0_dp * h2inv
@@ -95,8 +97,8 @@ contains
                     if (j-4 >= 1)   A(row - 4*n_x, row) = -9.0_dp * h2inv
 
                     ! --- Z direction neighbors ---
-                    if (k+1 <= n_x) A(row + n_x*n_x, row)   = 80640.0_dp * h2inv
-                    if (k-1 >= 1)   A(row - n_x*n_x, row)   = 80640.0_dp * h2inv
+                    if (k+1 <= n_x) A(row + n_x*n_x, row)   = 8064.0_dp * h2inv
+                    if (k-1 >= 1)   A(row - n_x*n_x, row)   = 8064.0_dp * h2inv
                     if (k+2 <= n_x) A(row + 2*n_x*n_x, row) = -1008.0_dp * h2inv
                     if (k-2 >= 1)   A(row - 2*n_x*n_x, row) = -1008.0_dp * h2inv
                     if (k+3 <= n_x) A(row + 3*n_x*n_x, row) = 128.0_dp * h2inv
@@ -133,8 +135,8 @@ contains
                     A(row, row) = -43050.0_dp * h2inv
 
                     ! --- x direction neighbors ---
-                    if (i+1 <= n_x) A(row + 1, row)     = 80640.0_dp * h2inv
-                    if (i-1 >= 1)   A(row - 1, row)     = 80640.0_dp * h2inv
+                    if (i+1 <= n_x) A(row + 1, row)     = 8064.0_dp * h2inv
+                    if (i-1 >= 1)   A(row - 1, row)     = 8064.0_dp * h2inv
                     if (i+2 <= n_x) A(row + 2, row)     = -1008.0_dp * h2inv
                     if (i-2 >= 1)   A(row - 2, row)     = -1008.0_dp * h2inv
                     if (i+3 <= n_x) A(row + 3, row)     = 128.0_dp * h2inv
@@ -143,8 +145,8 @@ contains
                     if (i-4 >= 1)   A(row - 4, row)     = -9.0_dp * h2inv
 
                     ! --- y direction neighbors ---
-                    if (j+1 <= n_x) A(row + n_x, row)   = 80640.0_dp * h2inv
-                    if (j-1 >= 1)   A(row - n_x, row)   = 80640.0_dp * h2inv
+                    if (j+1 <= n_x) A(row + n_x, row)   = 8064.0_dp * h2inv
+                    if (j-1 >= 1)   A(row - n_x, row)   = 8064.0_dp * h2inv
                     if (j+2 <= n_x) A(row + 2*n_x, row) = -1008.0_dp * h2inv
                     if (j-2 >= 1)   A(row - 2*n_x, row) = -1008.0_dp * h2inv
                     if (j+3 <= n_x) A(row + 3*n_x, row) = 128.0_dp * h2inv
@@ -153,8 +155,8 @@ contains
                     if (j-4 >= 1)   A(row - 4*n_x, row) = -9.0_dp * h2inv
 
                     ! --- z direction neighbors ---
-                    if (k+1 <= n_x) A(row + n_x*n_x, row)   = 80640.0_dp * h2inv
-                    if (k-1 >= 1)   A(row - n_x*n_x, row)   = 80640.0_dp * h2inv
+                    if (k+1 <= n_x) A(row + n_x*n_x, row)   = 8064.0_dp * h2inv
+                    if (k-1 >= 1)   A(row - n_x*n_x, row)   = 8064.0_dp * h2inv
                     if (k+2 <= n_x) A(row + 2*n_x*n_x, row) = -1008.0_dp * h2inv
                     if (k-2 >= 1)   A(row - 2*n_x*n_x, row) = -1008.0_dp * h2inv
                     if (k+3 <= n_x) A(row + 3*n_x*n_x, row) = 128.0_dp * h2inv
@@ -178,7 +180,7 @@ contains
         integer, parameter :: max_iter = 10000
         integer  :: iter
         real(dp), allocatable :: temp(:), r(:), p(:)
-        real(dp) :: alpha, beta
+        real(dp) :: alpha, beta, rr_old, rr_new
 
         integer :: n
         print *, "Starting Conjugate Gradient method..."
@@ -192,34 +194,160 @@ contains
 
         r(:) = b(:) - matmul(A, x(:)) ! Initial residual
         p(:) = r(:) ! Initial search direction
-
+        rr_old = dot_product(r(:), r(:)) ! Initial residual squared norm
         iter = 1
         do iter = 1, max_iter
             temp(:) = matmul(A, p(:)) ! A*p
-            alpha = dot_product(r(:), r(:)) / dot_product(p(:), temp(:)) ! step size
+            alpha = rr_old / dot_product(p(:), temp(:)) ! step size
             x(:) = x(:) + alpha * p(:) ! update solution
             r(:) = r(:) - alpha * temp(:) ! update residual
+            rr_new = dot_product(r(:), r(:)) ! new residual squared norm
 
-            if (sqrt(dot_product(r(:), r(:))) < tol) then
+            if (sqrt(rr_new) < tol) then
                 print *, "CG converged in ", iter, " iterations."
                 exit
             end if
 
-            beta = dot_product(r(:), r(:)) / dot_product(p(:), temp(:)) ! update beta
+            beta = rr_new / rr_old ! update beta
             p(:) = r(:) + beta * p(:) ! update search direction
 
             if (mod(iter, 100) == 0) then
-                print *, "CG iteration ", iter, ": residual norm = ", sqrt(dot_product(r(:), r(:)))
+                print *, "CG iteration ", iter, ": residual norm = ", sqrt(rr_new)
             end if
+            rr_old = rr_new ! update for next iteration
         end do
 
         if (iter > max_iter) then
             print *, "CG did not converge within the maximum number of iterations."
         end if
         print *, "Conjugate Gradient method finished."
-        print *, "Final residual norm: ", sqrt(dot_product(r(:), r(:)))
+        print *, "Final residual norm: ", sqrt(rr_new)
         deallocate(temp, r, p)
     end subroutine CG_method
+
+
+
+    subroutine CG_method_helmholtz_EQ(b, x, n_x, h_x, coeff)
+        implicit none
+        real(dp), intent(in) :: b(:)
+        real(dp), intent(out) :: x(:)
+        integer, intent(in) :: n_x
+        real(dp), intent(in) :: h_x, coeff
+        real(dp), allocatable :: Ax(:)
+        real(dp) :: tol ! tolerance for convergence
+        integer, parameter :: max_iter = 10000
+        integer  :: iter
+        real(dp), allocatable :: temp(:), r(:), p(:)
+        real(dp) :: alpha, beta, rr_old, rr_new
+
+        integer :: n
+        print *, "Starting Conjugate Gradient method..."
+        n = size(b)
+
+        tol = 1.0e-20_dp
+        allocate(temp(n), r(n), p(n), Ax(n))
+
+        x(:) = 0.0_dp ! Initial guess
+
+        call helmholtz_x(x, n_x, h_x, coeff, Ax)
+        r(:) = b(:) - Ax(:) ! Initial residual
+        p(:) = r(:) ! Initial search direction
+        rr_old = dot_product(r(:), r(:)) ! Initial residual squared norm
+        iter = 1
+        do iter = 1, max_iter
+            call helmholtz_x(p, n_x, h_x, coeff, temp) ! temp = A*p
+            alpha = rr_old / dot_product(p(:), temp(:)) ! step size
+            x(:) = x(:) + alpha * p(:) ! update solution
+            r(:) = r(:) - alpha * temp(:) ! update residual
+            rr_new = dot_product(r(:), r(:)) ! new residual squared norm
+
+            if (sqrt(rr_new) < tol) then
+                print *, "CG converged in ", iter, " iterations."
+                exit
+            end if
+
+            beta = rr_new / rr_old ! update beta
+            p(:) = r(:) + beta * p(:) ! update search direction
+
+            if (mod(iter, 100) == 0) then
+                print *, "CG iteration ", iter, ": residual norm = ", sqrt(rr_new)
+            end if
+            rr_old = rr_new ! update for next iteration
+        end do
+
+        if (iter > max_iter) then
+            print *, "CG did not converge within the maximum number of iterations."
+        end if
+        print *, "Conjugate Gradient method finished."
+        print *, "Final residual norm: ", sqrt(rr_new)
+        deallocate(temp, r, p, Ax)
+
+        print *, "Helmholtz equation solved."
+    end subroutine CG_method_helmholtz_EQ
+
+    subroutine helmholtz_x(x, n_x, h_x, coeff, Ax)
+        implicit none
+        real(dp), intent(in) :: x(:)
+        integer, intent(in) :: n_x
+        real(dp), intent(in) :: h_x
+        real(dp), intent(in) :: coeff
+        real(dp), intent(out) :: Ax(:)
+        
+        integer :: i, j, k, row
+        real(dp) :: h2inv
+        ! print *, "Calculating Ax for the Helmholtz equation..."
+        if (size(x) /= n_x**3) stop "helmholtz_x: size of x must be equal to n_x^3"
+
+        h2inv = 1.0_dp / (5040.0_dp * h_x * h_x)
+        Ax = 0.0_dp
+
+        ! loop over the 3Dgrid points
+        do k = 1, n_x
+            do j = 1, n_x
+                do i = 1, n_x
+                    ! current grid point's 1D index (row number)
+                    row = (k-1)*n_x*n_x + (j-1)*n_x + i
+
+                    ! --- diagonal element ---
+                    Ax(row) = -43050.0_dp * h2inv * x(row) - 1.0_dp * x(row) * coeff**2
+
+                    ! --- x direction neighbors ---
+                    if (i+1 <= n_x) Ax(row) = Ax(row) + 8064.0_dp * h2inv * x(row + 1)
+                    if (i-1 >= 1)   Ax(row) = Ax(row) + 8064.0_dp * h2inv * x(row - 1)
+                    if (i+2 <= n_x) Ax(row) = Ax(row) -1008.0_dp * h2inv * x(row + 2)
+                    if (i-2 >= 1)   Ax(row) = Ax(row) -1008.0_dp * h2inv * x(row - 2)
+                    if (i+3 <= n_x) Ax(row) = Ax(row) + 128.0_dp * h2inv * x(row + 3)
+                    if (i-3 >= 1)   Ax(row) = Ax(row) + 128.0_dp * h2inv * x(row - 3)
+                    if (i+4 <= n_x) Ax(row) = Ax(row) -9.0_dp * h2inv * x(row + 4)
+                    if (i-4 >= 1)   Ax(row) = Ax(row) -9.0_dp * h2inv * x(row - 4)
+
+                    ! --- y direction neighbors ---
+                    if (j+1 <= n_x) Ax(row) = Ax(row) + 8064.0_dp * h2inv * x(row + n_x)
+                    if (j-1 >= 1)   Ax(row) = Ax(row) + 8064.0_dp * h2inv * x(row - n_x)
+                    if (j+2 <= n_x) Ax(row) = Ax(row) -1008.0_dp * h2inv * x(row + 2*n_x)
+                    if (j-2 >= 1)   Ax(row) = Ax(row) -1008.0_dp * h2inv * x(row - 2*n_x)
+                    if (j+3 <= n_x) Ax(row) = Ax(row) + 128.0_dp * h2inv * x(row + 3*n_x)
+                    if (j-3 >= 1)   Ax(row) = Ax(row) + 128.0_dp * h2inv * x(row - 3*n_x)
+                    if (j+4 <= n_x) Ax(row) = Ax(row) -9.0_dp * h2inv * x(row + 4*n_x)
+                    if (j-4 >= 1)   Ax(row) = Ax(row) -9.0_dp * h2inv * x(row - 4*n_x)
+
+                    ! --- z direction neighbors ---
+                    if (k+1 <= n_x) Ax(row) = Ax(row) + 8064.0_dp * h2inv * x(row + n_x*n_x)
+                    if (k-1 >= 1)   Ax(row) = Ax(row) + 8064.0_dp * h2inv * x(row - n_x*n_x)
+                    if (k+2 <= n_x) Ax(row) = Ax(row) -1008.0_dp * h2inv * x(row + 2*n_x*n_x)
+                    if (k-2 >= 1)   Ax(row) = Ax(row) -1008.0_dp * h2inv * x(row - 2*n_x*n_x)
+                    if (k+3 <= n_x) Ax(row) = Ax(row) + 128.0_dp * h2inv * x(row + 3*n_x*n_x)
+                    if (k-3 >= 1)   Ax(row) = Ax(row) + 128.0_dp * h2inv * x(row - 3*n_x*n_x)
+                    if (k+4 <= n_x) Ax(row) = Ax(row) -9.0_dp * h2inv * x(row + 4*n_x*n_x)
+                    if (k-4 >= 1)   Ax(row) = Ax(row) -9.0_dp * h2inv * x(row - 4*n_x*n_x)
+
+                end do
+            end do
+        end do
+        Ax(:) = -Ax(:) ! because the matrix A in the Helmholtz equation is negative definite, we need to negate Ax to get the correct result for Ax = A*x
+        ! print *, "Ax calculated for the Helmholtz equation."
+    end subroutine helmholtz_x
+
 
     
     

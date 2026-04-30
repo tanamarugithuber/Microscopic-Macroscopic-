@@ -1,0 +1,26 @@
+ B_1:   0.84043922631942891     
+ B_3:   0.83179997886092238     
+ Surface energy (analytical):    113.50354696033421     
+ Coulomb energy (analytical):    15.735269553718869     
+ FRLDM energy (analytical):   -126.04477009855573     
+ FRLDM energy calculated (analytical).
+ FRLDM Energy:   -126.04477009855573   
+
+ B_1:   0.84417333503828740     
+ B_3:   0.69207575867913851     
+ Surface energy:    114.00784824834294     
+ Coulomb energy:    13.092088111523687     
+ FRLDM energy:   -128.18365025274215     
+ FRLDM energy calculated.
+ 0.4dp, times=5
+
+ B_1:   0.84351457078386105     
+ B_3:   0.70798186977863187     
+ Surface energy:    113.91888038826872     
+ Coulomb energy:    13.392986106309252     
+ FRLDM energy:   -127.97172011803083     
+ FRLDM energy calculated.
+ g_mod%h_x = 0.5_dp
+    g_mod%h_y = 0.5_dp
+    g_mod%h_z = 0.5_dp
+    g_mod%n_times = 5
