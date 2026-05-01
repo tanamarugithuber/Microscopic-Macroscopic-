@@ -22,10 +22,27 @@ module FFT_integral_mod
         subroutine expand_space_1D(this,A)
             class(FFT_integral_type), intent(inout) :: this
             real(dp), intent(in) :: A(:)
+            integer :: i, n, n_A
             ! This subroutine will expand the space for the FFT integral calculations. 
             ! You can implement the actual logic for expanding the space based on your requirements.
             print *, "Expanding space for FFT integral calculations..."
-
+            n_A = size(A)
+            do i = 1, 100
+                n = 2**i
+                if (n >= n_A) then
+                    exit
+                end if
+            end do
+            allocate(this%FFT_function_1D(n))
+            ! Fill this%FFT_function_1D with the appropriate values based on the expanded space
+            this%FFT_function_1D = 0.0_dp
+            do i = 1, n_A
+                this%FFT_function_1D(i) = A(i)
+                if (i > n_A) then
+                    this%FFT_function_1D(i) = 0.0_dp ! Fill the rest with zeros if n is greater than n_A
+                end if
+            end do
+            
         end subroutine expand_space_1D
 
 
