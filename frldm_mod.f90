@@ -1,4 +1,5 @@
 module frldm_mod
+    !$ use omp_lib
     use iso_fortran_env, only: real64
     use constant_mod, only: e2, pi
     use nucleus_mod, only: nucleus_property
@@ -86,6 +87,8 @@ module frldm_mod
 
     contains
         subroutine calculate_exp(this, g_mod)
+            !$use omp_lib
+            implicit none
             class(frldm_variables), intent(inout) :: this
             
             type(grid_type), intent(in) :: g_mod
@@ -93,24 +96,34 @@ module frldm_mod
             integer :: i, j, k, l,m,n,o, n_x, n_y, n_z
             real(dp) :: a_Yukawa_inv = 1.0_dp / a_Yukawa
             real(dp) :: a_den_inv = 1.0_dp / a_den
-            real(dp) :: x, y, z
+            real(dp) :: x, y, z, r
             print *, "Calculating exponential factors for the surface and Coulomb energy..."
             
 
             allocate(this%B_1exp(g_mod%n_x_min*2:g_mod%n_x_max*2, g_mod%n_y_min*2:g_mod%n_y_max*2, g_mod%n_z_min*2:g_mod%n_z_max*2))
             allocate(this%B_3exp(g_mod%n_x_min*2:g_mod%n_x_max*2, g_mod%n_y_min*2:g_mod%n_y_max*2, g_mod%n_z_min*2:g_mod%n_z_max*2))
+
+            
+            !$omp parallel do collapse(3) default(none) &
+            !$omp shared(this, g_mod, a_Yukawa_inv, a_den_inv) &
+            !$omp private(i, j, k, x, y, z, r) schedule(static)
             do k = g_mod%n_z_min*2, g_mod%n_z_max*2
-                z = k * g_mod%h_z
                 do j = g_mod%n_y_min*2, g_mod%n_y_max*2
-                    y = j * g_mod%h_y
                     do i = g_mod%n_x_min*2, g_mod%n_x_max*2
-                        x = i * g_mod%h_x
-                        this%B_1exp(i,j,k) = exp(- sqrt(x**2 + y**2 + z**2) * a_Yukawa_inv)
-                        this%B_3exp(i,j,k) = exp(- sqrt(x**2 + y**2 + z**2) * a_den_inv)
+
+                        x = real(i, dp) * g_mod%h_x
+                        y = real(j, dp) * g_mod%h_y
+                        z = real(k, dp) * g_mod%h_z
+
+                        r = sqrt(x*x + y*y + z*z)
+
+                        this%B_1exp(i,j,k) = exp(-r * a_Yukawa_inv)
+                        this%B_3exp(i,j,k) = exp(-r * a_den_inv)
 
                     end do
                 end do
             end do
+            !$omp end parallel do
             print *, "Exponential factors calculated."
         end subroutine calculate_exp
 
@@ -194,6 +207,8 @@ module frldm_mod
         ! end subroutine calculate_b_1_b_3
 
         subroutine calculate_b_1_b_3(this, nucleus,g_mod)
+            !$ use omp_lib
+            implicit none
             class(frldm_variables), intent(inout) :: this
             type(nucleus_property), intent(in) :: nucleus
             type(grid_type), intent(in) :: g_mod
@@ -204,6 +219,7 @@ module frldm_mod
             real(dp) :: denominator3
             real(dp) :: a_Yukawa_inv = 1.0_dp / a_Yukawa
             real(dp) :: a_den_inv = 1.0_dp / a_den
+            real(dp) :: B1_sum, B3_sum
             real(dp), allocatable :: pi_rho(:)
             print *, "Calculating B_1 and B_3 for the FRLDM..."
 
@@ -224,33 +240,65 @@ module frldm_mod
             call CG_method_helmholtz_EQ(pi_rho, this%B_3pot_c, g_mod%n_x_points, g_mod%h_x, 0.0_dp)
 
             call this%calculate_exp(g_mod)
-            this%B_1 = 0.0_dp
-            this%B_3 = 0.0_dp
+            B1_sum = 0.0_dp
+            B3_sum = 0.0_dp
 
+            !$omp parallel do default(none) collapse(3) &
+            !$omp private(i,j,k,l,m,n,o,p) &
+            !$omp shared(this, g_mod, a_den_inv) &
+            !$omp reduction(+:B1_sum, B3_sum)
             do k = 1 , g_mod%n_z_points
                 do j = 1, g_mod%n_y_points
                     do i = 1, g_mod%n_x_points
-                        o = (k-1)*g_mod%n_x_points*g_mod%n_y_points + (j-1)*g_mod%n_x_points + i
+
+                        o = (k-1)*g_mod%n_x_points*g_mod%n_y_points &
+                        + (j-1)*g_mod%n_x_points + i
+                        if (g_mod%density_index(o) == 0.0_dp) cycle
+
                         do n = 1, g_mod%n_z_points
                             do m = 1, g_mod%n_y_points
                                 do l = 1, g_mod%n_x_points
-                                    p = (n-1)*g_mod%n_x_points*g_mod%n_y_points + (m-1)*g_mod%n_x_points + l
-                                    this%B_1 = this%B_1 - this%B_1exp(i-l,j-m,k-n) * g_mod%dV**2 * g_mod%density_index(p) &
-                                    * g_mod%density_index(o) 
-                                    this%B_3 = this%B_3 - this%B_3exp(i-l,j-m,k-n) * g_mod%dV**2 * 0.5_dp * a_den_inv &
-                                    * g_mod%density_index(p) * g_mod%density_index(o) 
+
+                                    p = (n-1)*g_mod%n_x_points*g_mod%n_y_points &
+                                    + (m-1)*g_mod%n_x_points + l
+                                    if (g_mod%density_index(p) == 0.0_dp) cycle
+
+                                    B1_sum = B1_sum &
+                                        - this%B_1exp(i-l,j-m,k-n) &
+                                        * g_mod%dV**2 &
+                                        * g_mod%density_index(p) &
+                                        * g_mod%density_index(o)
+
+                                    B3_sum = B3_sum &
+                                        - this%B_3exp(i-l,j-m,k-n) &
+                                        * g_mod%dV**2 &
+                                        * 0.5_dp * a_den_inv &
+                                        * g_mod%density_index(p) &
+                                        * g_mod%density_index(o)
+
                                 end do
                             end do
                         end do
-                        this%B_1 = this%B_1 + 2.0_dp * this%B_1pot_y(o)* g_mod%dV * g_mod%density_index(o) * a_Yukawa
-                        this%B_3 = this%B_3 + (this%B_3pot_c(o) - this%B_3pot_y(o)  )*g_mod%density_index(o)* g_mod%dV
                     end do
                 end do
             end do
+            !$omp end parallel do
 
+            !$omp parallel do default(none) private(o) &
+            !$omp shared(this,g_mod) &
+            !$omp reduction(+:B1_sum,B3_sum)
+            do o = 1, g_mod%n_points
+                if (g_mod%density_index(o) == 0.0_dp) cycle
+                B1_sum = B1_sum + 2.0_dp * this%B_1pot_y(o) &
+                        * g_mod%dV * g_mod%density_index(o) * a_Yukawa
 
-            this%B_1 = this%B_1 / denominator1 * nucleus%A**(-2.0_dp / 3.0_dp)
-            this%B_3 = this%B_3 / denominator3 * 15.0_dp * nucleus%A**(-5.0_dp / 3.0_dp)
+                B3_sum = B3_sum + (this%B_3pot_c(o) - this%B_3pot_y(o)) &
+                        * g_mod%density_index(o) * g_mod%dV
+            end do
+            !$omp end parallel do
+
+            this%B_1 = B1_sum / denominator1 * nucleus%A**(-2.0_dp / 3.0_dp)
+            this%B_3 = B3_sum / denominator3 * 15.0_dp * nucleus%A**(-5.0_dp / 3.0_dp)
 
             deallocate(pi_rho)
             deallocate(this%B_1pot_y)
@@ -263,6 +311,8 @@ module frldm_mod
         end subroutine calculate_b_1_b_3
 
         subroutine calculate_frldm_energy(this, nucleus, g_mod, E_frldm)
+            !$ use omp_lib
+            implicit none
             class(frldm_variables), intent(inout) :: this
             type(nucleus_property), intent(in) :: nucleus
             type(grid_type), intent(in) :: g_mod

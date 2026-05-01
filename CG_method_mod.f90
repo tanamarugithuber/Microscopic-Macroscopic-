@@ -1,6 +1,6 @@
 module CG_method_mod
+    !$ use omp_lib
     use iso_fortran_env, only: real64
-
     implicit none
     private
     integer, parameter :: dp = real64
@@ -228,6 +228,7 @@ contains
 
 
     subroutine CG_method_helmholtz_EQ(b, x, n_x, h_x, coeff)
+        !$ use omp_lib
         implicit none
         real(dp), intent(in) :: b(:)
         real(dp), intent(out) :: x(:)
@@ -238,7 +239,8 @@ contains
         integer, parameter :: max_iter = 10000
         integer  :: iter
         real(dp), allocatable :: temp(:), r(:), p(:)
-        real(dp) :: alpha, beta, rr_old, rr_new
+        real(dp) :: alpha, beta, rr_old, rr_new, denom
+        integer :: n_size
 
         integer :: n
         print *, "Starting Conjugate Gradient method..."
@@ -256,10 +258,28 @@ contains
         iter = 1
         do iter = 1, max_iter
             call helmholtz_x(p, n_x, h_x, coeff, temp) ! temp = A*p
-            alpha = rr_old / dot_product(p(:), temp(:)) ! step size
+
+            n_size = size(p)
+            denom = 0.0_dp
+            !$omp parallel do default(none) private(n) shared(p,temp,n_size) &
+            !$omp reduction(+:denom) schedule(static)
+            do n = 1, n_size
+                denom = denom + p(n) * temp(n)
+            end do
+            !$omp end parallel do
+            alpha = rr_old / denom
+
             x(:) = x(:) + alpha * p(:) ! update solution
-            r(:) = r(:) - alpha * temp(:) ! update residual
-            rr_new = dot_product(r(:), r(:)) ! new residual squared norm
+            
+            n_size = size(r)
+            rr_new = 0.0_dp
+            !$omp parallel do default(none) private(n) shared(r,alpha,temp,n_size) &
+            !$omp reduction(+:rr_new) schedule(static)
+            do n = 1, n_size
+                r(n) = r(n) - alpha * temp(n)
+                rr_new = rr_new + r(n) * r(n)
+            end do
+            !$omp end parallel do
 
             if (sqrt(rr_new) < tol) then
                 print *, "CG converged in ", iter, " iterations."
@@ -286,6 +306,7 @@ contains
     end subroutine CG_method_helmholtz_EQ
 
     subroutine helmholtz_x(x, n_x, h_x, coeff, Ax)
+        !$ use omp_lib
         implicit none
         real(dp), intent(in) :: x(:)
         integer, intent(in) :: n_x
@@ -302,6 +323,10 @@ contains
         Ax = 0.0_dp
 
         ! loop over the 3Dgrid points
+        !$omp parallel do collapse(3) default(none) &
+        !$omp private(i,j,k,row) &
+        !$omp shared(x,Ax,n_x,h2inv,coeff) &
+        !$omp schedule(static)
         do k = 1, n_x
             do j = 1, n_x
                 do i = 1, n_x
@@ -344,6 +369,7 @@ contains
                 end do
             end do
         end do
+        !$omp end parallel do
         Ax(:) = -Ax(:) ! because the matrix A in the Helmholtz equation is negative definite, we need to negate Ax to get the correct result for Ax = A*x
         ! print *, "Ax calculated for the Helmholtz equation."
     end subroutine helmholtz_x

@@ -1,4 +1,5 @@
 module nucleus_mod
+    !$ use omp_lib
     use iso_fortran_env, only: real64
     use constant_mod, only: pi
     implicit none

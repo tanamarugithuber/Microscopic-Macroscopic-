@@ -24,3 +24,194 @@
     g_mod%h_y = 0.5_dp
     g_mod%h_z = 0.5_dp
     g_mod%n_times = 5
+
+
+nucleus%N = 20
+    nucleus%Z = 20
+    nucleus%semi1 = nucleus%R0*(nucleus%Z + nucleus%N)**(1.0_dp/3.0_dp)
+    call nucleus%calculate_fundamental_properties()
+    ! Initialize grid
+    g_mod%h_x = 0.5_dp
+    g_mod%h_y = 0.5_dp
+    g_mod%h_z = 0.5_dp
+    g_mod%n_times = 5
+B_1 and B_3 calculated.
+ B_1:   0.90796578328924649     
+ B_3:   0.75873499074772310     
+ Surface energy:    225.87384280546934     
+ Coulomb energy:    66.096542589162212     
+ FRLDM energy:   -346.22533025591139     
+ FRLDM energy calculated.
+ B_1:   0.91201024638436912     
+ B_3:   0.89358895944522465     
+ Surface energy (analytical):    226.87998030337241     
+ Coulomb energy (analytical):    77.844229454833112     
+ FRLDM energy (analytical):   -333.47150589233740     
+ FRLDM energy calculated (analytical).
+ FRLDM Energy:   -333.47150589233740     
+
+
+nucleus%N = 14
+    nucleus%Z = 8
+    nucleus%semi1 = nucleus%R0*(nucleus%Z + nucleus%N)**(1.0_dp/3.0_dp)
+    call nucleus%calculate_fundamental_properties()
+
+    ! Initialize grid
+    g_mod%h_x = 0.5_dp
+    g_mod%h_y = 0.5_dp
+    g_mod%h_z = 0.5_dp
+    g_mod%n_times = 5
+B_1 and B_3 calculated.
+ B_1:   0.88544058571335815     
+ B_3:   0.76500245733830163     
+ Surface energy:    121.59449459113216     
+ Coulomb energy:    13.014192095355115     
+ FRLDM energy:   -158.32004343551506     
+ FRLDM energy calculated.
+ B_1:   0.86982122356042324     
+ B_3:   0.85569883911111644     
+ Surface energy (analytical):    119.44954158415896     
+ Coulomb energy (analytical):    14.557115419878636     
+ FRLDM energy (analytical):   -158.92207311796474     
+ FRLDM energy calculated (analytical).
+ FRLDM Energy:   -158.92207311796474 
+
+
+ A =          16
+ Z =           8
+ N =           8
+ R_a =   2.9230168357561057     
+ Volume =   104.61225400784411     
+ Surface Area =   107.36741512552776     
+ Initializing grid based on the nucleus properties...
+ Grid boundaries calculated:
+ n_x_min:          -60  n_x_max:           60
+ n_y_min:          -60  n_y_max:           60
+ n_z_min:          -60  n_z_max:           60
+ Total number of grid points calculated for x direction:          121
+ Total number of grid points calculated for y direction:          121
+ Total number of grid points calculated for z direction:          121
+ Total number of grid points:      1771561
+ Grid boundaries and size calculated:
+ Determining which grid points are inside or outside the nucleus...
+ Number of grid points inside the nucleus:          847
+ Number of grid points:     1771561
+ Grid points classified as inside or outside the nucleus.
+ Calculating FRLDM energy for the nucleus...
+ Calculating B_1 and B_3 for the FRLDM...
+ Starting Conjugate Gradient method...
+ CG iteration          100 : residual norm =    1.9453039732953448E-012
+ CG converged in          158  iterations.
+ Conjugate Gradient method finished.
+ Final residual norm:    7.6858431684846298E-021
+ Helmholtz equation solved.
+ Starting Conjugate Gradient method...
+ CG iteration          100 : residual norm =    5.0561114939123336E-012
+ CG converged in          162  iterations.
+ Conjugate Gradient method finished.
+ Final residual norm:    9.3484562953981918E-021
+ Helmholtz equation solved.
+ Starting Conjugate Gradient method...
+ CG iteration          100 : residual norm =    88.177444166545300     
+ CG iteration          200 : residual norm =    3.9978410704204674     
+ CG iteration          300 : residual norm =    5.2802526726278866E-003
+ CG iteration          400 : residual norm =    3.4440899797890884E-007
+ CG iteration          500 : residual norm =    2.8940748897270060E-011
+ CG iteration          600 : residual norm =    3.1017672915361280E-013
+ CG iteration          700 : residual norm =    6.4271389280541670E-016
+ CG iteration          800 : residual norm =    2.4857646939863534E-018
+ CG iteration          900 : residual norm =    2.6890775042623907E-020
+ CG converged in          920  iterations.
+ Conjugate Gradient method finished.
+ Final residual norm:    9.8671662318383436E-021
+ Helmholtz equation solved.
+ Calculating exponential factors for the surface and Coulomb energy...
+ Exponential factors calculated.
+ B_1 and B_3 calculated.
+ B_1:   0.84351457078595127     
+ B_3:   0.77749845951035401     
+ Surface energy:    113.91888038855100     
+ Coulomb energy:    14.708040573348169     
+ FRLDM energy:   -126.65666565070963     
+ FRLDM energy calculated.
+ B_1:   0.84043922631942891     
+ B_3:   0.83179997886092238     
+ Surface energy (analytical):    113.50354696033421     
+ Coulomb energy (analytical):    15.735269553718869     
+ FRLDM energy (analytical):   -126.04477009855573     
+ FRLDM energy calculated (analytical).
+ FRLDM Energy:   -126.04477009855573  
+
+ A =          16
+ Z =           8
+ N =           8
+ R_a =   2.9230168357561057     
+ Volume =   104.61225400784411     
+ Surface Area =   107.36741512552776     
+ Initializing grid based on the nucleus properties...
+ Grid boundaries calculated:
+ n_x_min:         -120  n_x_max:          120
+ n_y_min:         -120  n_y_max:          120
+ n_z_min:         -120  n_z_max:          120
+ Total number of grid points calculated for x direction:          241
+ Total number of grid points calculated for y direction:          241
+ Total number of grid points calculated for z direction:          241
+ Total number of grid points:     13997521
+ Grid boundaries and size calculated:
+ Determining which grid points are inside or outside the nucleus...
+ Number of grid points inside the nucleus:          847
+ Number of grid points:    13997521
+ Grid points classified as inside or outside the nucleus.
+ Calculating FRLDM energy for the nucleus...
+ Calculating B_1 and B_3 for the FRLDM...
+ Starting Conjugate Gradient method...
+ CG iteration          100 : residual norm =    1.9529189692708069E-012
+ CG converged in          158  iterations.
+ Conjugate Gradient method finished.
+ Final residual norm:    8.5370384028783046E-021
+ Helmholtz equation solved.
+ Starting Conjugate Gradient method...
+ CG iteration          100 : residual norm =    5.0753884152159499E-012
+ CG converged in          163  iterations.
+ Conjugate Gradient method finished.
+ Final residual norm:    7.6835974627711602E-021
+ Helmholtz equation solved.
+ Starting Conjugate Gradient method...
+ CG iteration          100 : residual norm =    88.208464427916994     
+ CG iteration          200 : residual norm =    46.655136446293668     
+ CG iteration          300 : residual norm =    19.557702682411325     
+ CG iteration          400 : residual norm =    2.5546957590336343     
+ CG iteration          500 : residual norm =   0.13852735039521469     
+ CG iteration          600 : residual norm =    3.7658151158357460E-003
+ CG iteration          700 : residual norm =    4.3312763617026763E-005
+ CG iteration          800 : residual norm =    2.6344676791326893E-007
+ CG iteration          900 : residual norm =    8.7394331353456896E-010
+ CG iteration         1000 : residual norm =    6.6480059861063741E-011
+ CG iteration         1100 : residual norm =    4.1362234984880034E-012
+ CG iteration         1200 : residual norm =    8.0518541077290898E-013
+ CG iteration         1300 : residual norm =    5.6479940162783402E-015
+ CG iteration         1400 : residual norm =    3.4521729848648630E-016
+ CG iteration         1500 : residual norm =    5.8293403502524939E-017
+ CG iteration         1600 : residual norm =    1.5700168279262907E-018
+ CG iteration         1700 : residual norm =    1.1284951397362074E-019
+ CG iteration         1800 : residual norm =    1.3263277604437405E-020
+ CG converged in         1819  iterations.
+ Conjugate Gradient method finished.
+ Final residual norm:    9.6175882176941092E-021
+ Helmholtz equation solved.
+ Calculating exponential factors for the surface and Coulomb energy...
+ Exponential factors calculated.
+ B_1 and B_3 calculated.
+ B_1:   0.84351457078093639     
+ B_3:   0.81303162270130158     
+ Surface energy:    113.91888038787373     
+ Coulomb energy:    15.380226092842307     
+ FRLDM energy:   -125.98448013189275     
+ FRLDM energy calculated.
+ B_1:   0.84043922631942891     
+ B_3:   0.83179997886092238     
+ Surface energy (analytical):    113.50354696033421     
+ Coulomb energy (analytical):    15.735269553718869     
+ FRLDM energy (analytical):   -126.04477009855573     
+ FRLDM energy calculated (analytical).
+ FRLDM Energy:   -126.04477009855573  

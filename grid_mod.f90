@@ -1,4 +1,5 @@
 module grid_mod
+    !$ use omp_lib
     use iso_fortran_env, only: real64
     use nucleus_mod, only: nucleus_property
 
@@ -66,6 +67,7 @@ module grid_mod
 
     contains
         subroutine initialize_grid(this, nucleus)
+            implicit none
             class(grid_type), intent(inout) :: this
             type(nucleus_property), intent(in) :: nucleus
             
@@ -113,7 +115,7 @@ module grid_mod
         end subroutine initialize_grid
 
         subroutine inside_outside_nucleus(this, nucleus, index)
-            
+            implicit none
             class(grid_type), intent(in) :: this
             type(nucleus_property), intent(in) :: nucleus
             real(dp), intent(out) :: index(this%n_points)

@@ -1,4 +1,5 @@
 module constant_mod
+    !$ use omp_lib
     use iso_fortran_env, only: real64
     implicit none
     private
