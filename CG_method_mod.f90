@@ -396,11 +396,13 @@ contains
         real(dp) :: h2inv
         real(dp) :: total_charge, x_temp, y_temp, z_temp
         integer :: nx_mid, ny_mid, nz_mid
+        integer :: n_inner, ii, jj, kk, idx
         print *, "Solving the equation Ax = b using Conjugate Gradient method..."
 
         ! prepare the x(:) and b(:) vectors for CG method
         ! caution : x(:) and b(:) don't have the points within four grid points of the boundary
-        n_sizes = (n_x - 8)**3
+        n_inner = n_x - 8
+        n_sizes = n_inner**3
         h2inv = 1.0_dp / (5040.0_dp * h_x * h_x)
         allocate(x(n_sizes), b(n_sizes), Ax(n_sizes), temp(n_sizes), r(n_sizes), p(n_sizes))
         if (size(density) /= n_x**3) stop "CG_method_2: size of density must be equal to n_x^3"
@@ -429,7 +431,7 @@ contains
                             x_temp = (i - nx_mid) * h_x
                             y_temp = (j - ny_mid) * h_x
                             z_temp = (k - nz_mid) * h_x
-                            solution(row) = total_charge / (sqrt(x_temp**2 + y_temp**2 + z_temp**2)) ! initial guess for the points within four grid points of the boundary, using the formula for the potential of a point charge, where the total charge is assumed to be concentrated at the center of the grid
+                            solution(row) = total_charge *h_x**3 / (sqrt(x_temp**2 + y_temp**2 + z_temp**2)) ! initial guess for the points within four grid points of the boundary, using the formula for the potential of a point charge, where the total charge is assumed to be concentrated at the center of the grid
                         end if
                     end do
                 end do
@@ -438,110 +440,114 @@ contains
 
         ! fill the b(:)
         !$omp parallel do collapse(3) default(none) &
-        !$omp private(i,j,k,row) &
-        !$omp shared(b,density,n_x,h_x,solution,h2inv) &
+        !$omp private(i,j,k,row,ii,jj,kk,idx) &
+        !$omp shared(b,density,n_x,h_x,solution,h2inv,n_inner) &
         !$omp schedule(static)
         do k = 5, n_x-4
             do j = 5, n_x-4
                 do i = 5, n_x-4
                     row = (k-1)*n_x*n_x + (j-1)*n_x + i
-                    b(row - (4*n_x*n_x + 4*n_x + 4)) = density(row)  ! because the matrix A in the Poisson equation is negative definite, we need to negate b to get the correct result for Ax = b
+                    ii = i - 4
+                    jj = j - 4
+                    kk = k - 4
+                    idx = (kk-1)*n_inner*n_inner + (jj-1)*n_inner + ii
+                    b(idx) = density(row)  ! because the matrix A in the Poisson equation is negative definite, we need to negate b to get the correct result for Ax = b
 
                     ! add the contribution from the points within four grid points of the boundary to b(:) using gauss law
-                    if (i-4 < 1) then
-                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                    if (i-4 < 5) then
+                        b(idx) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
                         + (-9.0_dp * h2inv *solution(row - 4))
                     end if
-                    if (i+4 > n_x) then
-                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                    if (i+4 > n_x - 4) then
+                        b(idx) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
                         + (-9.0_dp * h2inv * solution(row + 4))
                     end if
-                    if (j-4 < 1) then
-                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                    if (j-4 < 5) then
+                        b(idx) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
                         + (-9.0_dp * h2inv * solution(row - 4*n_x))
                     end if
-                    if (j+4 > n_x) then
-                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                    if (j+4 > n_x - 4) then
+                        b(idx) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
                         + (-9.0_dp * h2inv * solution(row + 4*n_x))
                     end if
-                    if (k-4 < 1) then
-                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                    if (k-4 < 5) then
+                        b(idx) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
                         + (-9.0_dp * h2inv * solution(row - 4*n_x*n_x))
                     end if
-                    if (k+4 > n_x) then
-                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                    if (k+4 > n_x - 4) then
+                        b(idx) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
                         + (-9.0_dp * h2inv * solution(row + 4*n_x*n_x))
                     end if
-                    if (i-3 < 1) then
-                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                    if (i-3 < 5) then
+                        b(idx) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
                         + (128.0_dp * h2inv * solution(row - 3))
                     end if
-                    if (i+3 > n_x) then
-                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                    if (i+3 > n_x - 4) then
+                        b(idx) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
                         + (128.0_dp * h2inv * solution(row + 3))
                     end if
-                    if (j-3 < 1) then
-                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                    if (j-3 < 5) then
+                        b(idx) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
                         + (128.0_dp * h2inv * solution(row - 3*n_x))
                     end if
-                    if (j+3 > n_x) then
-                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                    if (j+3 > n_x - 4) then
+                        b(idx) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
                         + (128.0_dp * h2inv * solution(row + 3*n_x))
                     end if
-                    if (k-3 < 1) then
-                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                    if (k-3 < 5) then
+                        b(idx) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
                         + (128.0_dp * h2inv * solution(row - 3*n_x*n_x))
                     end if
-                    if (k+3 > n_x) then
-                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                    if (k+3 > n_x - 4) then
+                        b(idx) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
                         + (128.0_dp * h2inv * solution(row + 3*n_x*n_x))
                     end if
-                    if (i-2 < 1) then
-                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                    if (i-2 < 5) then
+                        b(idx) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
                         - (1008.0_dp * h2inv * solution(row - 2))
                     end if
-                    if (i+2 > n_x) then
-                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                    if (i+2 > n_x - 4) then
+                        b(idx) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
                         - (1008.0_dp * h2inv * solution(row + 2))
                     end if
-                    if (j-2 < 1) then
-                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                    if (j-2 < 5) then
+                        b(idx) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
                         - (1008.0_dp * h2inv * solution(row - 2*n_x))
                     end if
-                    if (j+2 > n_x) then
-                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                    if (j+2 > n_x - 4) then
+                        b(idx) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
                         - (1008.0_dp * h2inv * solution(row + 2*n_x))
                     end if
-                    if (k-2 < 1) then
-                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                    if (k-2 < 5) then
+                        b(idx) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
                         - (1008.0_dp * h2inv * solution(row - 2*n_x*n_x))
                     end if
-                    if (k+2 > n_x) then
-                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                    if (k+2 > n_x - 4) then
+                        b(idx) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
                         - (1008.0_dp * h2inv * solution(row + 2*n_x*n_x))
                     end if
-                    if (i-1 < 1) then
-                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                    if (i-1 < 5) then
+                        b(idx) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
                         + (8064.0_dp * h2inv * solution(row - 1))
                     end if
-                    if (i+1 > n_x) then
-                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                    if (i+1 > n_x - 4) then
+                        b(idx) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
                         + (8064.0_dp * h2inv * solution(row + 1))
                     end if
-                    if (j-1 < 1) then
-                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                    if (j-1 < 5) then
+                        b(idx) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
                         + (8064.0_dp * h2inv * solution(row - n_x))
                     end if
-                    if (j+1 > n_x) then
-                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                    if (j+1 > n_x - 4) then
+                        b(idx) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
                         + (8064.0_dp * h2inv * solution(row + n_x))
                     end if
-                    if (k-1 < 1) then
-                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                    if (k-1 < 5) then
+                        b(idx) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
                         + (8064.0_dp * h2inv * solution(row - n_x*n_x))
                     end if
-                    if (k+1 > n_x) then
-                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                    if (k+1 > n_x - 4) then
+                        b(idx) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
                         + (8064.0_dp * h2inv * solution(row + n_x*n_x))
                     end if
 
@@ -605,15 +611,29 @@ contains
 
         ! fill the solution(:) with the values from x(:)
         print *, "Filling the solution vector with the values from CG method..."
+
+        !$omp parallel do collapse(3) default(none) &
+        !$omp private(i,j,k,row,ii,jj,kk,idx) &
+        !$omp shared(solution,x,n_x,n_inner) &
+        !$omp schedule(static)
         do k = 5, n_x-4
             do j = 5, n_x-4
                 do i = 5, n_x-4
+
                     row = (k-1)*n_x*n_x + (j-1)*n_x + i
-                    solution(row) = x(row - (4*n_x*n_x + 4*n_x + 4))
+
+                    ii = i - 4
+                    jj = j - 4
+                    kk = k - 4
+                    idx = (kk-1)*n_inner*n_inner + (jj-1)*n_inner + ii
+
+                    solution(row) = x(idx)
+
                 end do
             end do
         end do
-        print *, "Poisson equation solved."
+        !$omp end parallel do
+        print *, "Solution vector filled with the values from CG method."
     
     end subroutine CG_method_poisson
 

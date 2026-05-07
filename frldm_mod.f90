@@ -236,7 +236,7 @@ module frldm_mod
 
             call CG_method_helmholtz_EQ(pi_rho, this%B_1pot_y, g_mod%n_x_points, g_mod%h_x, a_Yukawa_inv)
             call CG_method_helmholtz_EQ(pi_rho, this%B_3pot_y, g_mod%n_x_points, g_mod%h_x, a_den_inv)
-            call CG_method_poisson(pi_rho, this%B_3pot_c, g_mod%n_x_points, g_mod%h_x)
+            call CG_method_poisson(g_mod%density_index, this%B_3pot_c, g_mod%n_x_points, g_mod%h_x)
 
             call this%calculate_exp(g_mod)
             B1_sum = 0.0_dp
