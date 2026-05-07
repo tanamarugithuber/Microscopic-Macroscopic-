@@ -36,9 +36,10 @@ program main
     g_mod%h_x = 0.5_dp
     g_mod%h_y = 0.5_dp
     g_mod%h_z = 0.5_dp
-    g_mod%n_times = 20
+    g_mod%n_times = 3
     call g_mod%initialize_grid(nucleus)
     allocate(g_mod%density_index(g_mod%n_points))
+    ! allocate(g_mod%r(g_mod%n_points))
     call g_mod%inside_outside_nucleus(nucleus, g_mod%density_index)
 
     ! Calculate FRLDM variables

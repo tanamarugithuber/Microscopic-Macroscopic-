@@ -14,6 +14,8 @@ module CG_method_mod
     public :: initialize_poisson_matrix
     public :: CG_method_helmholtz_EQ
     public :: helmholtz_x
+    public :: poisson_x
+    public :: CG_method_poisson
 
     ! public :: index_3D_to_1D
     
@@ -374,7 +376,311 @@ contains
         ! print *, "Ax calculated for the Helmholtz equation."
     end subroutine helmholtz_x
 
+    ! CG_method for helmholtz EQ with the dirichlet boundary condition.s, using 8th order finite difference formula 
+    ! use CG method to solve the points without the points within four grid points of the boundary
+    ! the points within four grid points of the boundary are sloved by gauss law
+    subroutine CG_method_poisson(density, solution, n_x, h_x)
+        !$ use omp_lib
+        implicit none
+        real(dp), intent(in) :: density(:)
+        real(dp), intent(out) :: solution(:)
+        integer, intent(in) :: n_x
+        real(dp), intent(in) :: h_x
+        real(dp), allocatable :: x(:), b(:)
+        real(dp), allocatable :: Ax(:)
+        real(dp), allocatable :: temp(:), r(:), p(:)!,dist(:)
+        real(dp) :: alpha, beta, rr_old, rr_new, denom
+        real(dp) :: tol = 1.0e-20_dp
+        integer, parameter :: max_iter = 10000
+        integer :: n_sizes, i, j, k, row, iter
+        real(dp) :: h2inv
+        real(dp) :: total_charge, x_temp, y_temp, z_temp
+        integer :: nx_mid, ny_mid, nz_mid
+        print *, "Solving the equation Ax = b using Conjugate Gradient method..."
 
+        ! prepare the x(:) and b(:) vectors for CG method
+        ! caution : x(:) and b(:) don't have the points within four grid points of the boundary
+        n_sizes = (n_x - 8)**3
+        h2inv = 1.0_dp / (5040.0_dp * h_x * h_x)
+        allocate(x(n_sizes), b(n_sizes), Ax(n_sizes), temp(n_sizes), r(n_sizes), p(n_sizes))
+        if (size(density) /= n_x**3) stop "CG_method_2: size of density must be equal to n_x^3"
+        if (size(solution) /= n_x**3) stop "CG_method_2: size of solution must be equal to n_x^3"
+
+        total_charge = sum(density)
+        print *, "Total charge:", total_charge
+
+        ! dist(:) is used to store the distance from zero to the points within four grid points of the boundary, which is used to calculate the contribution from these points to b(:) using gauss law
+    
+        ! fill the solution(:) with the initial guess, which is the contribution from the points within four grid points of the boundary to b(:) using gauss law, and then we will update solution(:) in each iteration of CG method
+            solution(:) = 0.0_dp
+            nx_mid = (n_x + 1) / 2
+            ny_mid = (n_x + 1) / 2
+            nz_mid = (n_x + 1) / 2
+
+            !$omp parallel do collapse(3) default(none) &
+            !$omp private(i,j,k,row,x_temp,y_temp,z_temp) &
+            !$omp shared(solution,n_x,h_x,total_charge,nx_mid,ny_mid,nz_mid) &
+            !$omp schedule(static)
+            do k = 1, n_x
+                do j = 1, n_x
+                    do i = 1, n_x
+                        if (i < 5 .or. i > n_x-4 .or. j < 5 .or. j > n_x-4 .or. k < 5 .or. k > n_x-4) then
+                            row = (k-1)*n_x*n_x + (j-1)*n_x + i
+                            x_temp = (i - nx_mid) * h_x
+                            y_temp = (j - ny_mid) * h_x
+                            z_temp = (k - nz_mid) * h_x
+                            solution(row) = total_charge / (sqrt(x_temp**2 + y_temp**2 + z_temp**2)) ! initial guess for the points within four grid points of the boundary, using the formula for the potential of a point charge, where the total charge is assumed to be concentrated at the center of the grid
+                        end if
+                    end do
+                end do
+            end do
+            !$omp end parallel do
+
+        ! fill the b(:)
+        !$omp parallel do collapse(3) default(none) &
+        !$omp private(i,j,k,row) &
+        !$omp shared(b,density,n_x,h_x,solution,h2inv) &
+        !$omp schedule(static)
+        do k = 5, n_x-4
+            do j = 5, n_x-4
+                do i = 5, n_x-4
+                    row = (k-1)*n_x*n_x + (j-1)*n_x + i
+                    b(row - (4*n_x*n_x + 4*n_x + 4)) = density(row)  ! because the matrix A in the Poisson equation is negative definite, we need to negate b to get the correct result for Ax = b
+
+                    ! add the contribution from the points within four grid points of the boundary to b(:) using gauss law
+                    if (i-4 < 1) then
+                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                        + (-9.0_dp * h2inv *solution(row - 4))
+                    end if
+                    if (i+4 > n_x) then
+                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                        + (-9.0_dp * h2inv * solution(row + 4))
+                    end if
+                    if (j-4 < 1) then
+                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                        + (-9.0_dp * h2inv * solution(row - 4*n_x))
+                    end if
+                    if (j+4 > n_x) then
+                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                        + (-9.0_dp * h2inv * solution(row + 4*n_x))
+                    end if
+                    if (k-4 < 1) then
+                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                        + (-9.0_dp * h2inv * solution(row - 4*n_x*n_x))
+                    end if
+                    if (k+4 > n_x) then
+                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                        + (-9.0_dp * h2inv * solution(row + 4*n_x*n_x))
+                    end if
+                    if (i-3 < 1) then
+                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                        + (128.0_dp * h2inv * solution(row - 3))
+                    end if
+                    if (i+3 > n_x) then
+                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                        + (128.0_dp * h2inv * solution(row + 3))
+                    end if
+                    if (j-3 < 1) then
+                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                        + (128.0_dp * h2inv * solution(row - 3*n_x))
+                    end if
+                    if (j+3 > n_x) then
+                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                        + (128.0_dp * h2inv * solution(row + 3*n_x))
+                    end if
+                    if (k-3 < 1) then
+                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                        + (128.0_dp * h2inv * solution(row - 3*n_x*n_x))
+                    end if
+                    if (k+3 > n_x) then
+                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                        + (128.0_dp * h2inv * solution(row + 3*n_x*n_x))
+                    end if
+                    if (i-2 < 1) then
+                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                        - (1008.0_dp * h2inv * solution(row - 2))
+                    end if
+                    if (i+2 > n_x) then
+                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                        - (1008.0_dp * h2inv * solution(row + 2))
+                    end if
+                    if (j-2 < 1) then
+                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                        - (1008.0_dp * h2inv * solution(row - 2*n_x))
+                    end if
+                    if (j+2 > n_x) then
+                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                        - (1008.0_dp * h2inv * solution(row + 2*n_x))
+                    end if
+                    if (k-2 < 1) then
+                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                        - (1008.0_dp * h2inv * solution(row - 2*n_x*n_x))
+                    end if
+                    if (k+2 > n_x) then
+                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                        - (1008.0_dp * h2inv * solution(row + 2*n_x*n_x))
+                    end if
+                    if (i-1 < 1) then
+                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                        + (8064.0_dp * h2inv * solution(row - 1))
+                    end if
+                    if (i+1 > n_x) then
+                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                        + (8064.0_dp * h2inv * solution(row + 1))
+                    end if
+                    if (j-1 < 1) then
+                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                        + (8064.0_dp * h2inv * solution(row - n_x))
+                    end if
+                    if (j+1 > n_x) then
+                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                        + (8064.0_dp * h2inv * solution(row + n_x))
+                    end if
+                    if (k-1 < 1) then
+                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                        + (8064.0_dp * h2inv * solution(row - n_x*n_x))
+                    end if
+                    if (k+1 > n_x) then
+                        b(row - (4*n_x*n_x + 4*n_x + 4)) = b(row - (4*n_x*n_x + 4*n_x + 4)) &
+                        + (8064.0_dp * h2inv * solution(row + n_x*n_x))
+                    end if
+
+                end do
+            end do
+        end do
+        !$omp end parallel do
+
+        ! CG method to solve Ax = b
+        x(:) = 0.0_dp ! Initial guess
+        call poisson_x(x, n_x-8, h_x, Ax) ! Ax = A*x
+        r(:) = b(:) - Ax(:) ! Initial residual
+        p(:) = r(:) ! Initial search direction
+        rr_old = dot_product(r(:), r(:)) ! Initial residual squared norm
+        iter = 1
+        do iter = 1, max_iter
+            call poisson_x(p, n_x-8, h_x, temp) ! temp = A*p
+
+            n_sizes = size(p)
+            denom = 0.0_dp
+            !$omp parallel do default(none) private(i) shared(p,temp,n_sizes) &
+            !$omp reduction(+:denom) schedule(static)
+            do i = 1, n_sizes
+                denom = denom + p(i) * temp(i)
+            end do
+            !$omp end parallel do
+            alpha = rr_old / denom
+
+            x(:) = x(:) + alpha * p(:) ! update solution
+            
+            n_sizes = size(r)
+            rr_new = 0.0_dp
+            !$omp parallel do default(none) private(i) shared(r,alpha,temp,n_sizes) &
+            !$omp reduction(+:rr_new) schedule(static)
+            do i = 1, n_sizes
+                r(i) = r(i) - alpha * temp(i)
+                rr_new = rr_new + r(i) * r(i)
+            end do
+            !$omp end parallel do
+
+            if (sqrt(rr_new) < tol) then
+                print *, "CG converged in ", iter, " iterations."
+                exit
+            end if
+
+            beta = rr_new / rr_old ! update beta
+            p(:) = r(:) + beta * p(:) ! update search direction
+
+            if (mod(iter, 100) == 0) then
+                print *, "CG iteration ", iter, ": residual norm = ", sqrt(rr_new)
+            end if
+            rr_old = rr_new ! update for next iteration
+        end do
+
+        if (iter > max_iter) then
+            print *, "CG did not converge within the maximum number of iterations."
+        end if
+        print *, "Conjugate Gradient method finished."
+        print *, "Final residual norm: ", sqrt(rr_new)
+        deallocate(x, b, Ax, temp, r, p)
+
+        ! fill the solution(:) with the values from x(:)
+        print *, "Filling the solution vector with the values from CG method..."
+        do k = 5, n_x-4
+            do j = 5, n_x-4
+                do i = 5, n_x-4
+                    row = (k-1)*n_x*n_x + (j-1)*n_x + i
+                    solution(row) = x(row - (4*n_x*n_x + 4*n_x + 4))
+                end do
+            end do
+        end do
+        print *, "Poisson equation solved."
+    
+    end subroutine CG_method_poisson
+
+    subroutine poisson_x(x, n_x_in, h_x, Ax)
+        !$ use omp_lib
+        implicit none
+        real(dp), intent(out) :: x(:)
+        integer, intent(in) :: n_x_in
+        real(dp), intent(in) :: h_x
+        real(dp), intent(out) :: Ax(:)
+        integer :: i, j, k, row
+        real(dp) :: h2inv
+        
+
+        if (size(x) /= n_x_in**3) stop "poisson_x_: size of x must be equal to n_x^3"
+        if (size(Ax) /= n_x_in**3) stop "poisson_x_: size of Ax must be equal to n_x^3"
+
+        h2inv = 1.0_dp / (5040.0_dp * h_x * h_x)
+        Ax = 0.0_dp
+        !$omp parallel do collapse(3) default(none) &
+        !$omp private(i,j,k,row) &
+        !$omp shared(x,Ax,n_x_in,h2inv) &
+        !$omp schedule(static)
+        do k = 1, n_x_in
+            do j = 1, n_x_in
+                do i = 1, n_x_in
+                    row = (k-1)*n_x_in*n_x_in + (j-1)*n_x_in + i
+
+                    ! --- diagonal element ---
+                    Ax(row) = -43050.0_dp * h2inv * x(row)
+
+                    ! --- x direction neighbors ---
+                    if (i+1 <= n_x_in) Ax(row) = Ax(row) + 8064.0_dp * h2inv * x(row + 1)
+                    if (i-1 >= 1)   Ax(row) = Ax(row) + 8064.0_dp * h2inv * x(row - 1)
+                    if (i+2 <= n_x_in) Ax(row) = Ax(row) -1008.0_dp * h2inv * x(row + 2)
+                    if (i-2 >= 1)   Ax(row) = Ax(row) -1008.0_dp * h2inv * x(row - 2)
+                    if (i+3 <= n_x_in) Ax(row) = Ax(row) + 128.0_dp * h2inv * x(row + 3)
+                    if (i-3 >= 1)   Ax(row) = Ax(row) + 128.0_dp * h2inv * x(row - 3)
+                    if (i+4 <= n_x_in) Ax(row) = Ax(row) -9.0_dp * h2inv * x(row + 4)
+                    if (i-4 >= 1)   Ax(row) = Ax(row) -9.0_dp * h2inv * x(row - 4)
+
+                    ! --- y direction neighbors ---
+                    if (j+1 <= n_x_in) Ax(row) = Ax(row) + 8064.0_dp * h2inv * x(row + n_x_in)
+                    if (j-1 >= 1)   Ax(row) = Ax(row) + 8064.0_dp * h2inv * x(row - n_x_in)
+                    if (j+2 <= n_x_in) Ax(row) = Ax(row) -1008.0_dp * h2inv * x(row + 2*n_x_in)
+                    if (j-2 >= 1)   Ax(row) = Ax(row) -1008.0_dp * h2inv * x(row - 2*n_x_in)
+                    if (j+3 <= n_x_in) Ax(row) = Ax(row) + 128.0_dp * h2inv * x(row + 3*n_x_in)
+                    if (j-3 >= 1)   Ax(row) = Ax(row) + 128.0_dp * h2inv * x(row - 3*n_x_in)
+                    if (j+4 <= n_x_in) Ax(row) = Ax(row) -9.0_dp * h2inv * x(row + 4*n_x_in)
+                    if (j-4 >= 1)   Ax(row) = Ax(row) -9.0_dp * h2inv * x(row - 4*n_x_in)
+
+                    ! --- z direction neighbors ---
+                    if (k+1 <= n_x_in) Ax(row) = Ax(row) + 8064.0_dp * h2inv * x(row + n_x_in*n_x_in)
+                    if (k-1 >= 1)   Ax(row) = Ax(row) + 8064.0_dp * h2inv * x(row - n_x_in*n_x_in)
+                    if (k+2 <= n_x_in) Ax(row) = Ax(row) -1008.0_dp * h2inv * x(row + 2*n_x_in*n_x_in)
+                    if (k-2 >= 1)   Ax(row) = Ax(row) -1008.0_dp * h2inv * x(row - 2*n_x_in*n_x_in)
+                    if (k+3 <= n_x_in) Ax(row) = Ax(row) + 128.0_dp * h2inv * x(row + 3*n_x_in*n_x_in)
+                    if (k-3 >= 1)   Ax(row) = Ax(row) + 128.0_dp * h2inv * x(row - 3*n_x_in*n_x_in)
+                    if (k+4 <= n_x_in) Ax(row) = Ax(row) -9.0_dp * h2inv * x(row + 4*n_x_in*n_x_in)
+                    if (k-4 >= 1)   Ax(row) = Ax(row) -9.0_dp * h2inv * x(row - 4*n_x_in*n_x_in)    
+                end do
+            end do
+        end do
+        !$omp end parallel do
+        Ax(:) = -Ax(:) ! because the matrix A in the Poisson equation
+
+    end subroutine poisson_x
     
     
 

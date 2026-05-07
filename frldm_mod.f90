@@ -4,8 +4,7 @@ module frldm_mod
     use constant_mod, only: e2, pi
     use nucleus_mod, only: nucleus_property
     use grid_mod, only: grid_type
-    use CG_method_mod, only: helmholtz_matrix, poisson_matrix, &
-                         initialize_helmholtz_matrix, initialize_poisson_matrix, CG_method, CG_method_helmholtz_EQ, helmholtz_x
+    use CG_method_mod, only: CG_method_helmholtz_EQ, CG_method_poisson, poisson_x, helmholtz_x
     implicit none
     private
 
@@ -237,7 +236,7 @@ module frldm_mod
 
             call CG_method_helmholtz_EQ(pi_rho, this%B_1pot_y, g_mod%n_x_points, g_mod%h_x, a_Yukawa_inv)
             call CG_method_helmholtz_EQ(pi_rho, this%B_3pot_y, g_mod%n_x_points, g_mod%h_x, a_den_inv)
-            call CG_method_helmholtz_EQ(pi_rho, this%B_3pot_c, g_mod%n_x_points, g_mod%h_x, 0.0_dp)
+            call CG_method_poisson(pi_rho, this%B_3pot_c, g_mod%n_x_points, g_mod%h_x)
 
             call this%calculate_exp(g_mod)
             B1_sum = 0.0_dp
