@@ -27,8 +27,8 @@ program main
     ! print *, "Solution x: ", x
 
     ! Initialize nucleus properties
-    nucleus%N = 8
-    nucleus%Z = 8
+    nucleus%N = 20
+    nucleus%Z = 20
     nucleus%semi1 = nucleus%R0*(nucleus%Z + nucleus%N)**(1.0_dp/3.0_dp)
     call nucleus%calculate_fundamental_properties()
 

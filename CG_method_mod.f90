@@ -452,7 +452,7 @@ contains
                     jj = j - 4
                     kk = k - 4
                     idx = (kk-1)*n_inner*n_inner + (jj-1)*n_inner + ii
-                    b(idx) = density(row)  ! because the matrix A in the Poisson equation is negative definite, we need to negate b to get the correct result for Ax = b
+                    b(idx) = density(row)* 4.0_dp * 3.14159265358979323846_dp  ! because the matrix A in the Poisson equation is negative definite, we need to negate b to get the correct result for Ax = b
 
                     ! add the contribution from the points within four grid points of the boundary to b(:) using gauss law
                     if (i-4 < 5) then
