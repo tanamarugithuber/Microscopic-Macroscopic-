@@ -54,12 +54,15 @@ module grid_mod
         !---------------------------
         !real(dp), allocatable :: r(:) ! r(i) gives the radial coordinate of the grid point i
         real(dp), allocatable :: density_index(:) ! density_index(i,j,k) gives the wheather the grid point (i,j,k) is inside the nucleus (1) or outside the nucleus (0). And it can be used as a density if the density is assumed to be constant inside the nucleus and zero outside the nucleus.
+        real(dp), allocatable :: density_index3D(:,:,:) ! density_index3D(i,j,k) gives the wheather the grid point (i,j,k) is inside the nucleus (1) or outside the nucleus (0). And it can be used as a density if the density is assumed to be constant inside the nucleus and zero outside the nucleus.
 
 
 
         contains
             procedure :: initialize_grid
             procedure :: inside_outside_nucleus
+            procedure :: inside_outside_nucleus3D
+            procedure :: deformation_parameterization
     end type grid_type
 
 
@@ -145,6 +148,50 @@ module grid_mod
             print *, "Grid points classified as inside or outside the nucleus."
 
         end subroutine inside_outside_nucleus
+
+        subroutine inside_outside_nucleus3D(this, nucleus, index)
+            implicit none
+            class(grid_type), intent(in) :: this
+            type(nucleus_property), intent(in) :: nucleus
+            real(dp), intent(out) :: index(this%n_x_points, this%n_y_points, this%n_z_points)
+            ! real(dp), intent(out) :: r(this%n_points)
+            integer :: i, j, k
+            real(dp) :: x, y, z
+            print *, "Determining which grid points are inside or outside the nucleus..."
+        
+            do k = 1, this%n_z_points
+                z = (this%n_z_min + k - 1) * this%h_z
+                do j = 1, this%n_y_points
+                    y = (this%n_y_min + j - 1) * this%h_y
+                    do i = 1, this%n_x_points
+                        x = (this%n_x_min + i - 1) * this%h_x
+                        ! l = (k-1)*this%n_z_points*this%n_y_points + (j-1)*this%n_x_points + i
+                        ! r(l) = sqrt(x**2 + y**2 + z**2)
+                        if ((x/nucleus%semi1)**2 + (y/nucleus%semi1)**2 + (z/nucleus%semi2)**2 <= 1.0_dp) then
+                            index(i,j,k) = 1.0_dp ! inside the nucleus
+                        else
+                            index(i,j,k) = 0.0_dp ! outside the nucleus
+                        end if
+                    end do
+                end do
+            end do
+            print *, "Number of grid points inside the nucleus: ", count(index == 1.0_dp)
+            print *, "Number of grid points:", this%n_points
+            print *, "Grid points classified as inside or outside the nucleus."
+
+        end subroutine inside_outside_nucleus3D
+
+        subroutine deformation_parameterization(this, nucleus, beta2, beta4)
+            implicit none
+            class(grid_type), intent(in) :: this
+            type(nucleus_property), intent(in) :: nucleus
+            real(dp), intent(in) :: beta2, beta4
+            print *, "Calculating deformation parameterization for the grid..."
+            ! This subroutine can be used to calculate the deformation of the nucleus and adjust the grid accordingly.
+
+            
+        end subroutine deformation_parameterization
+
 
 
 end module grid_mod

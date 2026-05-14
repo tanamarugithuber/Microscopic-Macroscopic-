@@ -1,7 +1,9 @@
 module micro_constant_mod
+    !$use omp_lib
     use iso_fortran_env, only: real64
     use constant_mod, only: pi, e2
     use nucleus_mod, only: nucleus_property
+    use grid_mod, only: grid_type
     implicit none
     private
 
@@ -56,7 +58,7 @@ module micro_constant_mod
         real(dp) :: R_pot
         real(dp) :: e_rho_c
         real(dp) :: hbar_omega0
-        real(dp), allocatable :: mi_density_index(:) ! density_index(i,j,k) gives the wheather the grid point (i,j,k) is inside the nucleus (1) or outside the nucleus (0). And it can be used as a density if the density is assumed to be constant inside the nucleus and zero outside the nucleus.
+        real(dp), allocatable :: mi_density_index3D(:,:,:) ! density_index3D(i,j,k) gives the wheather the grid point (i,j,k) is inside the nucleus (1) or outside the nucleus (0). And it can be used as a density if the density is assumed to be constant inside the nucleus and zero outside the nucleus.
         contains
             procedure :: calculate_microscopic_variables
     end type microscopic_variables
@@ -64,9 +66,14 @@ module micro_constant_mod
     public :: microscopic_variables
 
     contains
-        subroutine calculate_microscopic_variables(this, nucleus)
+        subroutine calculate_microscopic_variables(this, nucleus, grid)
+            implicit none
             class(microscopic_variables), intent(inout) :: this
             type(nucleus_property), intent(in) :: nucleus
+            type(grid_type), intent(in) :: grid
+
+            integer :: i, j, k
+            real(dp) :: x, y, z
 
             this%delta_ave = ((nucleus%N - nucleus%Z) / nucleus%A * 0.0112_dp * nucleus%Z**2&
                                 / nucleus%A**(5.0_dp / 3.0_dp))/(1.0_dp + 3.15_dp * nucleus%A**(-1.0_dp / 3.0_dp))
@@ -76,6 +83,23 @@ module micro_constant_mod
             this%R_pot = this%R_den + mi_A_den - mi_B_den / this%R_den
             this%e_rho_c = nucleus%Z * e2 * 3.0_dp / (4.0_dp * pi * this%R_pot**3)
             this%hbar_omega0 = C_cur / nucleus%A**(1.0_dp / 3.0_dp) 
+            
+            do k = grid%n_z_min, grid%n_z_max
+                do j = grid%n_y_min, grid%n_y_max
+                    do i = grid%n_x_min, grid%n_x_max
+                        x = (grid%n_x_min + i - 1) * grid%h_x
+                        y = (grid%n_y_min + j - 1) * grid%h_y
+                        z = (grid%n_z_min + k - 1) * grid%h_z
+                        if ((x/nucleus%semi1)**2 + (y/nucleus%semi1)**2 + (z/nucleus%semi2)**2 <= 1.0_dp) then
+                            this%mi_density_index3D(i,j,k) = 1.0_dp ! inside the nucleus
+                        else
+                            this%mi_density_index3D(i,j,k) = 0.0_dp ! outside the nucleus
+                        end if
+
+                        
+                    end do
+                end do
+            end do
 
         end subroutine calculate_microscopic_variables
 

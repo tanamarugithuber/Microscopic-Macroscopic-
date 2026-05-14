@@ -29,6 +29,15 @@ module nucleus_mod
         real(dp) :: volume ! fm^3, volume of the nucleus
         real(dp) :: surface_area ! fm^2, surface area of the nucleus
 
+        !---------------------------
+        ! Variables deformation parameters
+        !---------------------------
+        real(dp) :: epsilon2
+        real(dp) :: epsilon3
+        real(dp) :: epsilon4
+        real(dp) :: epsilon5
+        real(dp) :: epsilon6
+
         contains
             procedure :: calculate_fundamental_properties
 

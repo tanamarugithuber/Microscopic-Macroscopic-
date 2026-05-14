@@ -27,8 +27,8 @@ program main
     ! print *, "Solution x: ", x
 
     ! Initialize nucleus properties
-    nucleus%N = 20
-    nucleus%Z = 20
+    nucleus%N = 8
+    nucleus%Z = 8
     nucleus%semi1 = nucleus%R0*(nucleus%Z + nucleus%N)**(1.0_dp/3.0_dp)
     call nucleus%calculate_fundamental_properties()
 
@@ -38,9 +38,11 @@ program main
     g_mod%h_z = 0.5_dp
     g_mod%n_times = 3
     call g_mod%initialize_grid(nucleus)
-    allocate(g_mod%density_index(g_mod%n_points))
+    ! allocate(g_mod%density_index(g_mod%n_points))
+    allocate(g_mod%density_index3D(g_mod%n_x_points, g_mod%n_y_points, g_mod%n_z_points))
     ! allocate(g_mod%r(g_mod%n_points))
-    call g_mod%inside_outside_nucleus(nucleus, g_mod%density_index)
+    ! call g_mod%inside_outside_nucleus(nucleus, g_mod%density_index)
+    call g_mod%inside_outside_nucleus3D(nucleus, g_mod%density_index3D)
 
     ! Calculate FRLDM variables
     

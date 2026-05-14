@@ -6,6 +6,8 @@ module three_D_derivative_mod
     integer, parameter :: dp = real64
 
     public :: laplacian
+    public :: d_x, d_y, d_z
+    public :: dd_x, dd_y, dd_z
 
 contains
 

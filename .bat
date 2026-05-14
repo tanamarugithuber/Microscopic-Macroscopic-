@@ -1,6 +1,7 @@
 del /Q *.mod 2>nul
 del /Q *.exe 2>nul
 del /Q *.o   2>nul
+set OMP_NUM_THREADS=4
 gfortran -fopenmp -c constant_mod.f90
 gfortran -fopenmp -c nucleus_mod.f90
 gfortran -fopenmp -c grid_mod.f90
