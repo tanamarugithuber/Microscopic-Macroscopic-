@@ -6,13 +6,13 @@
 
 ## 参考文献
 
-[Macro-Micro Frame Work](https://www.sciencedirect.com/science/article/pii/S0092640X1600005X) 
+[Macro-Micro Frame Work](https://www.sciencedirect.com/science/article/pii/S0092640X1600005X)  
 [Axial Asymmetry](https://iopscience.iop.org/article/10.1088/0031-8949/8/1-2/003)  
 [Shell+Pairing](https://journals.aps.org/prc/abstract/10.1103/PhysRevC.5.1050)  
 [Pairing](https://www.sciencedirect.com/science/article/pii/037594749290244E)  
 [Shell1](https://www.sciencedirect.com/science/article/pii/0375947468906994)  
-[Shell2](https://www.sciencedirect.com/science/article/pii/0375947467905106)
-[Nilsson Oscillator](file:///C:/Users/daich/Desktop/%E8%AB%96%E6%96%87%E5%80%89%E5%BA%AB/MICROSCOPIC-METHOD/ON_THE_NUCLEAR_STRUCTURE_AND_STABILITY_OF_HEAVY_AND_SUPERHEAVY_ELEMENT.pdf)
+[Shell2](https://www.sciencedirect.com/science/article/pii/0375947467905106)  
+[Nilsson Oscillator](https://www.sciencedirect.com/science/article/pii/0375947469908094)
 
 
 
