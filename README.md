@@ -25,9 +25,9 @@ graph TD;
     constant_mod.f90-->nucleus_mod.f90;
     nucleus_mod.f90-->grid_mod.f90;
     grid_mod.f90-->frldm_mod.f90;
-    CG_method_mod.f90-->frldm_mod.f90;
     grid_mod.f90-->micro_constant_mod.f90;
     micro_constant_mod.f90-->sp_solver_mod.f90
+    CG_method_mod.f90-->frldm_mod.f90;
     CG_method_mod.f90-->sp_solver_mod.f90
     sp_solver_mod.f90-->shell_bcs_mod.f90
     frldm_mod.f90-->main.f90
