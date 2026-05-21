@@ -1,5 +1,6 @@
 module CG_method_mod
     !$ use omp_lib
+    use, intrinsic :: ieee_arithmetic
     use iso_fortran_env, only: real64
     implicit none
     private
@@ -760,6 +761,7 @@ contains
         r(:,:,:) = b(:,:,:) - Ax(:,:,:) ! Initial residual
         p(:,:,:) = r(:,:,:) ! Initial search direction
         ! rr_old = dot_product(r(:,:,:), r(:,:,:)) ! Initial residual squared norm
+        rr_old = 0.0_dp
         do i = 1, n_x
             do j = 1, n_x
                 do k = 1, n_x
@@ -784,6 +786,15 @@ contains
                 end do
             end do
             !$omp end parallel do
+            if (.not. ieee_is_finite(denom)) then
+                print *, "ERROR: denom is not finite: ", denom
+                stop
+            end if
+
+            if (abs(denom) < 1.0e-300_dp) then
+                print *, "ERROR: denom is too small: ", denom
+                stop
+            end if
             alpha = rr_old / denom
 
             x(:,:,:) = x(:,:,:) + alpha * p(:,:,:) ! update solution
@@ -1083,6 +1094,7 @@ contains
         call poisson_x3D(x, n_x-8, h_x, Ax) ! Ax = A*x
         r(:,:,:) = b(:,:,:) - Ax(:,:,:) ! Initial residual
         p(:,:,:) = r(:,:,:) ! Initial search direction
+        rr_old = 0.0_dp
         do k = 1, n_inner
             do j = 1, n_inner
                 do i = 1, n_inner
