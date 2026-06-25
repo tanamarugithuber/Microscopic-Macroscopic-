@@ -3,12 +3,11 @@ module common_func_mod
     implicit none
     private
     integer, parameter :: dp = real64
-    public :: LegendreP, elliptical_integral_1st, conf_hyper_func, spherical_harmonic, &
-              overlap_calculation, gram_schmidt_orthogonalization
+    public :: LegendreP, elliptical_integral_1st, conf_hyper_func, spherical_harmonic
 
 contains
 
-function LegendreP(n,x) result(solution)
+        function LegendreP(n,x) result(solution)
             implicit none
             integer, intent(in) :: n
             real(dp), intent(in) :: x
@@ -91,88 +90,5 @@ function LegendreP(n,x) result(solution)
             solution = sqrt((2.0_dp*l + 1.0_dp)/(4.0_dp*pi)*gamma(real(l - abs(m), dp ))/gamma(real(l + abs(m), dp ))) &
             * LegendreP(l, cos(theta)) * exp(1.0_dp*cmplx(0.0_dp, 1.0_dp)*m*phi)* (-1.0_dp)**((m+abs(m))*0.5_dp)
         end function spherical_harmonic
-
-        subroutine overlap_calculation(psi1, psi2, overlap, dh)
-            implicit none
-            complex(dp), intent(in) :: psi1(:,:,:), psi2(:,:,:)
-            real(dp), intent(out) :: overlap
-            integer :: i, j, k, n
-            integer :: n_states, n_x, n_y, n_z
-            real(dp), intent(in) :: dh
-            ! n_states = size(psi1, 4)
-            n_x = size(psi1, 1)
-            n_y = size(psi1, 2)
-            n_z = size(psi1, 3)
-
-            !---------------------------
-            ! This subroutine calculates the overlap between two wavefunctions psi1 and psi2. 
-            ! The actual implementation of the function will depend on the specific model being used for the energy calculation.
-            !----------------------------
-            overlap = 0.0_dp
-            
-                do k = 1, n_x
-                    do j = 1, n_y
-                        do i = 1, n_z
-                            overlap = overlap + real(conjg(psi1(i,j,k))*psi2(i,j,k))*dh**3
-                        end do
-                    end do
-                end do
-            
-            
-        end subroutine overlap_calculation
-
-        subroutine gram_schmidt_orthogonalization(psi, dh)
-            implicit none
-            complex(dp), intent(inout) :: psi(:,:,:,:)
-            integer :: n_states
-            real(dp), intent(in) :: dh
-            integer :: i, j, k, m, n
-            integer :: n_x, n_y, n_z
-            real(dp) :: norm
-            real(dp) :: overlap
-
-            n_states = size(psi, 4)
-            n_x = size(psi, 1)
-            n_y = size(psi, 2)
-            n_z = size(psi, 3)
-
-            do m = 1, n_states
-                ! subtract the projections of the m-th state onto all previous states
-                do n = 1, m - 1
-                    call overlap_calculation(psi(:,:,:,m), psi(:,:,:,n), overlap, dh)
-                    do k = 1, n_x
-                        do j = 1, n_y
-                            do i = 1, n_z
-                                psi(i,j,k,m) = psi(i,j,k,m) - overlap * psi(i,j,k,n)
-                            end do
-                        end do
-                    end do
-                end do
-
-                ! normalize the m-th state
-                norm = 0.0_dp
-                do k = 1, n_x
-                    do j = 1, n_y
-                        do i = 1, n_z
-                            call overlap_calculation(psi(:,:,:,m), psi(:,:,:,m), overlap, dh)
-                            norm = norm + real(conjg(psi(i,j,k,m))*psi(i,j,k,m))*dh**3
-                        end do
-                    end do
-                end do
-                norm = sqrt(norm)
-
-                do k = 1, n_x
-                    do j = 1, n_y
-                        do i = 1, n_z
-                            psi(i,j,k,m) = psi(i,j,k,m) / norm
-                        end do
-                    end do
-                end do
-
-            end do
-
-        end subroutine gram_schmidt_orthogonalization
-
-
 
 end module common_func_mod
