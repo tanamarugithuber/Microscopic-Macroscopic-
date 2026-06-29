@@ -7,7 +7,7 @@ module calculate_vector_mod
     integer, parameter :: dp = real64
 
     contains
-        subroutine calculate_coulomb(rho, V_c, grid)
+        subroutine calculate_coulomb_FFT(rho, V_c, grid)
             implicit none
             class(grid_type), intent(in) :: grid
             real(dp), intent(in) :: rho(:,:,:)
@@ -18,7 +18,7 @@ module calculate_vector_mod
             ny = size(rho, 2)
             nz = size(rho, 3)
             
-        end subroutine calculate_coulomb
+        end subroutine calculate_coulomb_FFT
 
         subroutine calculate_Yukawa(rho, V_yukawa, grid)
             implicit none
