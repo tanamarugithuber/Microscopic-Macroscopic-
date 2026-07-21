@@ -58,6 +58,8 @@ module micro_constant_mod
         real(dp) :: R_pot
         real(dp) :: e_rho_c
         real(dp) :: hbar_omega0
+        real(dp) :: lambda_p
+        real(dp) :: lambda_n
         real(dp), allocatable :: mi_density_index3D(:,:,:) ! density_index3D(i,j,k) gives the wheather the grid point (i,j,k) is inside the nucleus (1) or outside the nucleus (0). And it can be used as a density if the density is assumed to be constant inside the nucleus and zero outside the nucleus.
         contains
             procedure :: calculate_microscopic_variables
@@ -83,6 +85,8 @@ module micro_constant_mod
             this%R_pot = this%R_den + mi_A_den - mi_B_den / this%R_den
             this%e_rho_c = nucleus%Z * e2 * 3.0_dp / (4.0_dp * pi * this%R_pot**3)
             this%hbar_omega0 = C_cur / nucleus%A**(1.0_dp / 3.0_dp) 
+            this%lambda_p = k_p * nucleus%A + l_p
+            this%lambda_n = k_n * nucleus%A + l_n
             
             do k = grid%n_z_min, grid%n_z_max
                 do j = grid%n_y_min, grid%n_y_max

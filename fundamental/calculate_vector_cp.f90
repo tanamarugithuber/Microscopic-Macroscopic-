@@ -10,12 +10,13 @@ module calculate_vector_cp_mod
     contains
         subroutine overlap_calculation_cp(psi1, psi2, overlap, dh)
             implicit none
-            complex(dp), intent(in) :: psi1(:,:,:), psi2(:,:,:)
-            real(dp), intent(out) :: overlap
-            integer :: i, j, k, n
-            integer :: n_states, n_x, n_y, n_z
+            complex(dp), intent(in) :: psi1(:,:,:,:), psi2(:,:,:,:)
+            complex(dp), intent(out) :: overlap
+            integer :: i, j, k, n, l
+            integer :: n_states, n_x, n_y, n_z, n_spin
             real(dp), intent(in) :: dh
             ! n_states = size(psi1, 4)
+            n_spin = size(psi1, 4)
             n_x = size(psi1, 1)
             n_y = size(psi1, 2)
             n_z = size(psi1, 3)
@@ -26,10 +27,12 @@ module calculate_vector_cp_mod
             !----------------------------
             overlap = 0.0_dp
             
-                do k = 1, n_x
-                    do j = 1, n_y
-                        do i = 1, n_z
-                            overlap = overlap + real(conjg(psi1(i,j,k))*psi2(i,j,k))*dh**3
+                do l = 1, n_spin
+                    do k = 1, n_x
+                        do j = 1, n_y
+                            do i = 1, n_z
+                                overlap = overlap + conjg(psi1(i,j,k,l)) * psi1(i,j,k,l) * dh**3 + conjg(psi2(i,j,k,l)) * psi2(i,j,k,l) * dh**3
+                            end do
                         end do
                     end do
                 end do
@@ -39,51 +42,38 @@ module calculate_vector_cp_mod
 
         subroutine gram_schmidt_orthogonalization_cp(psi, dh)
             implicit none
-            complex(dp), intent(inout) :: psi(:,:,:,:)
+            complex(dp), intent(inout) :: psi(:,:,:,:,:)
             integer :: n_states
             real(dp), intent(in) :: dh
-            integer :: i, j, k, m, n
-            integer :: n_x, n_y, n_z
+            integer :: i, j, k, m, n, l
+            integer :: n_x, n_y, n_z, n_spin
             real(dp) :: norm
-            real(dp) :: overlap
+            complex(dp) :: overlap
 
-            n_states = size(psi, 4)
+            n_states = size(psi, 5)
             n_x = size(psi, 1)
             n_y = size(psi, 2)
             n_z = size(psi, 3)
+            n_spin = size(psi, 4)
 
             do m = 1, n_states
                 ! subtract the projections of the m-th state onto all previous states
                 do n = 1, m - 1
-                    call overlap_calculation_cp(psi(:,:,:,m), psi(:,:,:,n), overlap, dh)
-                    do k = 1, n_x
-                        do j = 1, n_y
-                            do i = 1, n_z
-                                psi(i,j,k,m) = psi(i,j,k,m) - overlap * psi(i,j,k,n)
+                    call overlap_calculation_cp(psi(:,:,:,:,m), psi(:,:,:,:,n), overlap, dh)
+                    do l = 1, n_spin
+                        do k = 1, n_z
+                            do j = 1, n_y
+                                do i = 1, n_x
+                                    psi(i,j,k,l,m) = psi(i,j,k,l,m) - overlap * psi(i,j,k,l,n)
+                                end do
                             end do
                         end do
                     end do
                 end do
 
                 ! normalize the m-th state
-                norm = 0.0_dp
-                do k = 1, n_x
-                    do j = 1, n_y
-                        do i = 1, n_z
-                            call overlap_calculation_cp(psi(:,:,:,m), psi(:,:,:,m), overlap, dh)
-                            norm = norm + real(conjg(psi(i,j,k,m))*psi(i,j,k,m))*dh**3
-                        end do
-                    end do
-                end do
-                norm = sqrt(norm)
-
-                do k = 1, n_x
-                    do j = 1, n_y
-                        do i = 1, n_z
-                            psi(i,j,k,m) = psi(i,j,k,m) / norm
-                        end do
-                    end do
-                end do
+                call Normalize_wavefunction_cp(psi(:,:,:,:,m), dh)
+                
 
             end do
 
@@ -92,66 +82,63 @@ module calculate_vector_cp_mod
         subroutine normalize_wavefunction_cp(psi, dh)
             implicit none
             complex(dp), intent(inout) :: psi(:,:,:,:)
-            integer :: n_states
+            ! integer :: n_states
             real(dp), intent(in) :: dh
-            integer :: i, j, k, n
-            integer :: n_x, n_y, n_z
+            integer :: i, j, k, n, l
+            integer :: n_x, n_y, n_z, n_spin
             real(dp) :: norm
+            complex(dp) :: overlap
 
-            n_states = size(psi, 4)
+            ! n_states = size(psi, 5)
+            n_spin = size(psi, 4)
             n_x = size(psi, 1)
             n_y = size(psi, 2)
             n_z = size(psi, 3)
 
-            do n = 1, n_states
-                norm = 0.0_dp
-                do k = 1, n_x
-                    do j = 1, n_y
-                        do i = 1, n_z
-                            call overlap_calculation_cp(psi(:,:,:,n), psi(:,:,:,n), norm, dh)
-                        end do
-                    end do
-                end do
+
+                
+
+                call overlap_calculation_cp(psi(:,:,:,:), psi(:,:,:,:), overlap, dh)
+                norm = abs(overlap)
                 norm = sqrt(norm)
-
+            do l = 1, n_spin
                 do k = 1, n_x
                     do j = 1, n_y
                         do i = 1, n_z
-                            psi(i,j,k,n) = psi(i,j,k,n) / norm
+                            psi(i,j,k,l) = psi(i,j,k,l) / norm
                         end do
                     end do
                 end do
-
             end do
+
 
         end subroutine normalize_wavefunction_cp
 
         subroutine cross_product_cp(psi1_x, psi1_y, psi1_z, psi2_x, psi2_y, psi2_z, cross_x, cross_y, cross_z)
             implicit none
-            complex(dp), intent(in) :: psi1_x(:,:,:), psi1_y(:,:,:), psi1_z(:,:,:)
-            complex(dp), intent(in) :: psi2_x(:,:,:), psi2_y(:,:,:), psi2_z(:,:,:)
-            complex(dp), allocatable, intent(out) :: cross_x(:,:,:), cross_y(:,:,:), cross_z(:,:,:)
-            integer :: i, j, k
-            integer :: n_x, n_y, n_z
+            complex(dp), intent(in) :: psi1_x(:,:,:,:), psi1_y(:,:,:,:), psi1_z(:,:,:,:)
+            complex(dp), intent(in) :: psi2_x(:,:,:,:), psi2_y(:,:,:,:), psi2_z(:,:,:,:)
+            complex(dp), intent(out) :: cross_x(:,:,:,:), cross_y(:,:,:,:), cross_z(:,:,:,:)
+            integer :: i, j, k, l
+            integer :: n_x, n_y, n_z, n_spin
             n_x = size(psi1_x,1)
             n_y = size(psi1_x,2)
             n_z = size(psi1_x,3)
+            n_spin = size(psi1_x,4)
 
-            allocate(cross_x(n_x, n_y, n_z))
-            allocate(cross_y(n_x, n_y, n_z))
-            allocate(cross_z(n_x, n_y, n_z))
-
-            do k = 1, n_z
-                do j = 1, n_y
-                    do i = 1, n_x
-                        cross_x(i,j,k) = psi1_y(i,j,k) * psi2_z(i,j,k) - psi1_z(i,j,k) * psi2_y(i,j,k)
-                        cross_y(i,j,k) = psi1_z(i,j,k) * psi2_x(i,j,k) - psi1_x(i,j,k) * psi2_z(i,j,k)
-                        cross_z(i,j,k) = psi1_x(i,j,k) * psi2_y(i,j,k) - psi1_y(i,j,k) * psi2_x(i,j,k)
+            do l = 1, n_spin
+                do k = 1, n_z
+                    do j = 1, n_y
+                        do i = 1, n_x
+                            cross_x(i,j,k,l) = psi1_y(i,j,k,l) * psi2_z(i,j,k,l) - psi1_z(i,j,k,l) * psi2_y(i,j,k,l)
+                            cross_y(i,j,k,l) = psi1_z(i,j,k,l) * psi2_x(i,j,k,l) - psi1_x(i,j,k,l) * psi2_z(i,j,k,l)
+                            cross_z(i,j,k,l) = psi1_x(i,j,k,l) * psi2_y(i,j,k,l) - psi1_y(i,j,k,l) * psi2_x(i,j,k,l)
+                        end do
                     end do
                 end do
             end do
         end subroutine cross_product_cp
-
+    
         subroutine overlap_of_2Dmatrices_and_spinor_cp(vec_x,vec_y,vec_z,matrix_x,matrix_y,matrix_z,overlap)
             implicit none
             ! spinor components of the wavefunction

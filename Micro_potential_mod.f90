@@ -19,7 +19,7 @@ module Micro_potential_mod
         real(dp), allocatable :: nabla_V_1_x(:,:,:)
         real(dp), allocatable :: nabla_V_1_y(:,:,:)
         real(dp), allocatable :: nabla_V_1_z(:,:,:)
-        real(dp), allocatable :: psi(:,:,:,:,:)
+        complex(dp), allocatable :: psi(:,:,:,:,:)
 
         contains
             procedure :: calculate_potential_energy

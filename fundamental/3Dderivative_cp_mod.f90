@@ -17,7 +17,7 @@ contains
         implicit none
         complex(dp), intent(in)  :: func(:,:,:)
         real(dp), intent(in)  :: hx
-        complex(dp), intent(out) :: second_derivative(size(func,1), size(func,2), size(func,3))
+        complex(dp), intent(out) :: second_derivative(:,:,:)
 
         integer :: i, j, k
         integer :: nx, ny, nz
@@ -128,7 +128,7 @@ contains
         implicit none
         complex(dp), intent(in)  :: func(:,:,:)
         real(dp), intent(in)  :: hy
-        complex(dp), intent(out) :: second_derivative(size(func,1), size(func,2), size(func,3))
+        complex(dp), intent(out) :: second_derivative(:,:,:)
 
         integer :: i, j, k
         integer :: nx, ny, nz
@@ -239,7 +239,7 @@ contains
         implicit none
         complex(dp), intent(in)  :: func(:,:,:)
         real(dp), intent(in)  :: hz
-        complex(dp), intent(out) :: second_derivative(size(func,1), size(func,2), size(func,3))
+        complex(dp), intent(out) :: second_derivative(:,:,:)
 
         integer :: i, j, k
         integer :: nx, ny, nz
@@ -346,11 +346,11 @@ contains
         end do
     end subroutine dd_z_cp
 
-    subroutine laplacian_cp(func, hx, hy, hz, lap)
+    subroutine laplacian_cp(func, hx, lap)
         implicit none
         complex(dp), intent(in)  :: func(:,:,:)
-        real(dp), intent(in)  :: hx, hy, hz
-        complex(dp), intent(out) :: lap(size(func,1), size(func,2), size(func,3))
+        real(dp), intent(in)  :: hx
+        complex(dp), intent(out) :: lap(:,:,:)
 
         complex(dp), allocatable :: d2x(:,:,:), d2y(:,:,:), d2z(:,:,:)
         integer :: nx, ny, nz
@@ -362,8 +362,8 @@ contains
         allocate(d2x(nx,ny,nz), d2y(nx,ny,nz), d2z(nx,ny,nz))
 
         call dd_x_cp(func, hx, d2x)
-        call dd_y_cp(func, hy, d2y)
-        call dd_z_cp(func, hz, d2z)
+        call dd_y_cp(func, hx, d2y)
+        call dd_z_cp(func, hx, d2z)
 
         lap = d2x + d2y + d2z
 
