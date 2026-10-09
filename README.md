@@ -18,7 +18,7 @@
 
 
 ## 各ファイルの依存関係
-→の後にあるファイルはその前にあるすべてのファイルを参照していることに注意してください．
+→の後にあるファイルはその前にあるすべてのファイルを参照していることに注意してください．なお，すべてのファイルは./fundamental内のファイルのmoduldeを適宜参照しています．
 
 ```mermaid
 graph TD;
@@ -27,7 +27,6 @@ graph TD;
     grid_mod.f90-->frldm_mod.f90;
     grid_mod.f90-->micro_constant_mod.f90;
     micro_constant_mod.f90-->calculate_coulomb_FFT.f90
-    CG_method_mod.f90-->frldm_mod.f90;
     calculate_coulomb_FFT.f90-->Micro_potential_mod.f90
     Micro_potential_mod.f90-->EV_Lanczos.f90
     EV_Lanczos.f90-->shell_bcs_mod.f90
