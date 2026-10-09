@@ -29,6 +29,7 @@ graph TD;
     micro_constant_mod.f90-->calculate_coulomb_FFT.f90
     CG_method_mod.f90-->frldm_mod.f90;
     calculate_coulomb_FFT.f90-->Micro_potential_mod.f90
+    Micro_potential_mod.f90-->EV_Lanczos.f90
     EV_Lanczos.f90-->shell_bcs_mod.f90
     frldm_mod.f90-->main.f90
     shell_bcs_mod.f90-->main.f90
