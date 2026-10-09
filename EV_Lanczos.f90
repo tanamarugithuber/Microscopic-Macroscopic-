@@ -20,19 +20,35 @@ module EV_Lanczos
             real(dp), intent(out) :: eigenvector(:)
             real(dp), allocatable :: b(:,:,:,:),b_new(:,:,:,:), b_old(:,:,:,:)
             real(dp), allocatable :: alpha(:,:,:,:), beta(:,:,:,:)
-            integer :: nx, ny, nz, l
+            integer :: nx, ny, nz, nl
+            integer :: iter, i, j, k, l,a1, a2, a3, a4
             ! Implement the Lanczos algorithm here to compute the largest eigenvalue and corresponding eigenvector of matrix A.
             ! Use the initial vector b as the starting point for the iterations
 
             ! set up initial vector b and matrix A
-            allocate(b(nx,ny,nz,l))
-            allocate(b_new(nx,ny,nz,l))
-            allocate(b_old(nx,ny,nz,l))
-            allocate(alpha(nx,ny,nz,l))
-            allocate(beta(nx,ny,nz,l))
+            allocate(b(nx,ny,nz,nl))
+            allocate(b_new(nx,ny,nz,nl))
+            allocate(b_old(nx,ny,nz,nl))
+            allocate(alpha(nx,ny,nz,nl))
+            allocate(beta(nx,ny,nz,nl))
 
             ! Initialize b with some values 
             ! use a random number generator
+                
+            end do l = 1, nl
+                do k = 1, nz
+                    do j = 1, ny
+                        do i = 1, nx
+                            a1 = random_number()
+                            a2 = random_number()
+                            a3 = random_number()
+                            a4 = random_number()
+                            b(i,j,k,l) = 
+                        end do
+                    end do
+                end do
+            end do
+
 
 
         end subroutine lanczos_algorithm
