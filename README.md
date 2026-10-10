@@ -32,9 +32,20 @@ graph TD;
     EV_Lanczos.f90-->shell_bcs_mod.f90
     frldm_mod.f90-->main.f90
     shell_bcs_mod.f90-->main.f90
+    constant_mod.f90-->ho_basis_mod.f90
+    ho_basis_mod.f90-->shell_bcs_mod.f90
 
 ```
                 
+## 三軸変形調和振動子基底 (ho_basis_mod.f90)
+
+三軸変形核の一粒子準位を変形調和振動子基底の行列対角化で求めるモジュールです．ポテンシャル・∇V₁はGauss–Hermite求積点 `basis%point(axis,i)` 上で与えます．LAPACK (dstev, zheev) が必要です．
+
+```bash
+gfortran -O2 -fopenmp constant_mod.f90 ho_basis_mod.f90 test_ho_basis.f90 -llapack -o test_ho_basis.exe
+./test_ho_basis.exe
+```
+
 ## 運用
 
 1. [プロジェクトのフォークを作成]
