@@ -35,15 +35,15 @@ module EV_Lanczos
             ! Initialize b with some values 
             ! use a random number generator
                 
-            end do l = 1, nl
+            do l = 1, nl
                 do k = 1, nz
                     do j = 1, ny
                         do i = 1, nx
-                            a1 = random_number()
-                            a2 = random_number()
-                            a3 = random_number()
-                            a4 = random_number()
-                            b(i,j,k,l) = 
+                            call randomer_number(a1)
+                            call randomer_number(a2)
+                            call randomer_number(a3)
+                            call randomer_number(a4)
+                            b(i,j,k,l) = a1 + a2 + a3 + a4
                         end do
                     end do
                 end do

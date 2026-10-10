@@ -28,10 +28,11 @@ module calculate_vector_cp_mod
             overlap = 0.0_dp
             
                 do l = 1, n_spin
-                    do k = 1, n_x
+                    do k = 1, n_z
                         do j = 1, n_y
-                            do i = 1, n_z
-                                overlap = overlap + conjg(psi1(i,j,k,l)) * psi1(i,j,k,l) * dh**3 + conjg(psi2(i,j,k,l)) * psi2(i,j,k,l) * dh**3
+                            do i = 1, n_x
+                                overlap = overlap + sqrt(real(conjg(psi1(i,j,k,l)) &
+                                * psi1(i,j,k,l) * dh**3 + conjg(psi2(i,j,k,l)) * psi2(i,j,k,l) * dh**3))
                             end do
                         end do
                     end do

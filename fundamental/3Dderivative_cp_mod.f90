@@ -385,89 +385,94 @@ contains
         nz = size(func,3)
 
         if (nx < 9) stop "d_x: size(func,1) must be >= 9"
+        do k = 1, nz
+            do j = 1, ny
+                do i = 1, nx
+                    ! 9 point derivative in x-direction
+                    if (i >= 5 .and. i <= nx-4) then
 
-        ! 9 point derivative in x-direction
-        if (i >= 5 .and. i <= nx-4) then
+                derivative(i,j,k) = ( &
+                    3.0_dp*func(i-4,j,k) - 32.0_dp*func(i-3,j,k) &
+                + 168.0_dp*func(i-2,j,k) - 672.0_dp*func(i-1,j,k) &
+                + 672.0_dp*func(i+1,j,k) - 168.0_dp*func(i+2,j,k) &
+                + 32.0_dp*func(i+3,j,k) - 3.0_dp*func(i+4,j,k) ) / (840.0_dp*hx)
 
-            derivative(i,j,k) = ( &
-                3.0_dp*func(i-4,j,k) - 32.0_dp*func(i-3,j,k) &
-            + 168.0_dp*func(i-2,j,k) - 672.0_dp*func(i-1,j,k) &
-            + 672.0_dp*func(i+1,j,k) - 168.0_dp*func(i+2,j,k) &
-            + 32.0_dp*func(i+3,j,k) - 3.0_dp*func(i+4,j,k) ) / (840.0_dp*hx)
+            else if (i == 1) then
 
-        else if (i == 1) then
+                derivative(i,j,k) = ( &
+                -2283.0_dp*func(1,j,k) + 6720.0_dp*func(2,j,k) &
+                -11760.0_dp*func(3,j,k) + 15680.0_dp*func(4,j,k) &
+                -14700.0_dp*func(5,j,k) + 9408.0_dp*func(6,j,k) &
+                -3920.0_dp*func(7,j,k) + 960.0_dp*func(8,j,k) &
+                -105.0_dp*func(9,j,k) ) / (840.0_dp*hx)
 
-            derivative(i,j,k) = ( &
-            -2283.0_dp*func(1,j,k) + 6720.0_dp*func(2,j,k) &
-            -11760.0_dp*func(3,j,k) + 15680.0_dp*func(4,j,k) &
-            -14700.0_dp*func(5,j,k) + 9408.0_dp*func(6,j,k) &
-            -3920.0_dp*func(7,j,k) + 960.0_dp*func(8,j,k) &
-            -105.0_dp*func(9,j,k) ) / (840.0_dp*hx)
+            else if (i == 2) then
 
-        else if (i == 2) then
+                derivative(i,j,k) = ( &
+                -105.0_dp*func(1,j,k) - 1338.0_dp*func(2,j,k) &
+                +2940.0_dp*func(3,j,k) - 2940.0_dp*func(4,j,k) &
+                +2450.0_dp*func(5,j,k) - 1470.0_dp*func(6,j,k) &
+                +588.0_dp*func(7,j,k) - 140.0_dp*func(8,j,k) &
+                +15.0_dp*func(9,j,k) ) / (840.0_dp*hx)
 
-            derivative(i,j,k) = ( &
-            -105.0_dp*func(1,j,k) - 1338.0_dp*func(2,j,k) &
-            +2940.0_dp*func(3,j,k) - 2940.0_dp*func(4,j,k) &
-            +2450.0_dp*func(5,j,k) - 1470.0_dp*func(6,j,k) &
-            +588.0_dp*func(7,j,k) - 140.0_dp*func(8,j,k) &
-            +15.0_dp*func(9,j,k) ) / (840.0_dp*hx)
+            else if (i == 3) then
 
-        else if (i == 3) then
+                derivative(i,j,k) = ( &
+                15.0_dp*func(1,j,k) - 240.0_dp*func(2,j,k) &
+                -798.0_dp*func(3,j,k) + 1680.0_dp*func(4,j,k) &
+                -1050.0_dp*func(5,j,k) + 560.0_dp*func(6,j,k) &
+                -210.0_dp*func(7,j,k) + 48.0_dp*func(8,j,k) &
+                -5.0_dp*func(9,j,k) ) / (840.0_dp*hx)
 
-            derivative(i,j,k) = ( &
-            15.0_dp*func(1,j,k) - 240.0_dp*func(2,j,k) &
-            -798.0_dp*func(3,j,k) + 1680.0_dp*func(4,j,k) &
-            -1050.0_dp*func(5,j,k) + 560.0_dp*func(6,j,k) &
-            -210.0_dp*func(7,j,k) + 48.0_dp*func(8,j,k) &
-            -5.0_dp*func(9,j,k) ) / (840.0_dp*hx)
+            else if (i == 4) then
 
-        else if (i == 4) then
+                derivative(i,j,k) = ( &
+                -5.0_dp*func(1,j,k) + 60.0_dp*func(2,j,k) &
+                -420.0_dp*func(3,j,k) - 378.0_dp*func(4,j,k) &
+                +1050.0_dp*func(5,j,k) - 420.0_dp*func(6,j,k) &
+                +140.0_dp*func(7,j,k) - 30.0_dp*func(8,j,k) &
+                +3.0_dp*func(9,j,k) ) / (840.0_dp*hx)
 
-            derivative(i,j,k) = ( &
-            -5.0_dp*func(1,j,k) + 60.0_dp*func(2,j,k) &
-            -420.0_dp*func(3,j,k) - 378.0_dp*func(4,j,k) &
-            +1050.0_dp*func(5,j,k) - 420.0_dp*func(6,j,k) &
-            +140.0_dp*func(7,j,k) - 30.0_dp*func(8,j,k) &
-            +3.0_dp*func(9,j,k) ) / (840.0_dp*hx)
+            else if (i == nx-3) then
 
-        else if (i == nx-3) then
+                derivative(i,j,k) = -( &
+                -5.0_dp*func(nx,j,k) + 60.0_dp*func(nx-1,j,k) &
+                -420.0_dp*func(nx-2,j,k) - 378.0_dp*func(nx-3,j,k) &
+                +1050.0_dp*func(nx-4,j,k) - 420.0_dp*func(nx-5,j,k) &
+                +140.0_dp*func(nx-6,j,k) - 30.0_dp*func(nx-7,j,k) &
+                +3.0_dp*func(nx-8,j,k) ) / (840.0_dp*hx)
 
-            derivative(i,j,k) = -( &
-            -5.0_dp*func(nx,j,k) + 60.0_dp*func(nx-1,j,k) &
-            -420.0_dp*func(nx-2,j,k) - 378.0_dp*func(nx-3,j,k) &
-            +1050.0_dp*func(nx-4,j,k) - 420.0_dp*func(nx-5,j,k) &
-            +140.0_dp*func(nx-6,j,k) - 30.0_dp*func(nx-7,j,k) &
-            +3.0_dp*func(nx-8,j,k) ) / (840.0_dp*hx)
+            else if (i == nx-2) then
 
-        else if (i == nx-2) then
+                derivative(i,j,k) = -( &
+                15.0_dp*func(nx,j,k) - 240.0_dp*func(nx-1,j,k) &
+                -798.0_dp*func(nx-2,j,k) + 1680.0_dp*func(nx-3,j,k) &
+                -1050.0_dp*func(nx-4,j,k) + 560.0_dp*func(nx-5,j,k) &
+                -210.0_dp*func(nx-6,j,k) + 48.0_dp*func(nx-7,j,k) &
+                -5.0_dp*func(nx-8,j,k) ) / (840.0_dp*hx)
 
-            derivative(i,j,k) = -( &
-            15.0_dp*func(nx,j,k) - 240.0_dp*func(nx-1,j,k) &
-            -798.0_dp*func(nx-2,j,k) + 1680.0_dp*func(nx-3,j,k) &
-            -1050.0_dp*func(nx-4,j,k) + 560.0_dp*func(nx-5,j,k) &
-            -210.0_dp*func(nx-6,j,k) + 48.0_dp*func(nx-7,j,k) &
-            -5.0_dp*func(nx-8,j,k) ) / (840.0_dp*hx)
+            else if (i == nx-1) then
 
-        else if (i == nx-1) then
+                derivative(i,j,k) = -( &
+                -105.0_dp*func(nx,j,k) - 1338.0_dp*func(nx-1,j,k) &
+                +2940.0_dp*func(nx-2,j,k) - 2940.0_dp*func(nx-3,j,k) &
+                +2450.0_dp*func(nx-4,j,k) - 1470.0_dp*func(nx-5,j,k) &
+                +588.0_dp*func(nx-6,j,k) - 140.0_dp*func(nx-7,j,k) &
+                +15.0_dp*func(nx-8,j,k) ) / (840.0_dp*hx)
 
-            derivative(i,j,k) = -( &
-            -105.0_dp*func(nx,j,k) - 1338.0_dp*func(nx-1,j,k) &
-            +2940.0_dp*func(nx-2,j,k) - 2940.0_dp*func(nx-3,j,k) &
-            +2450.0_dp*func(nx-4,j,k) - 1470.0_dp*func(nx-5,j,k) &
-            +588.0_dp*func(nx-6,j,k) - 140.0_dp*func(nx-7,j,k) &
-            +15.0_dp*func(nx-8,j,k) ) / (840.0_dp*hx)
+            else if (i == nx) then
 
-        else if (i == nx) then
+                derivative(i,j,k) = -( &
+                -2283.0_dp*func(nx,j,k) + 6720.0_dp*func(nx-1,j,k) &
+                -11760.0_dp*func(nx-2,j,k) + 15680.0_dp*func(nx-3,j,k) &
+                -14700.0_dp*func(nx-4,j,k) + 9408.0_dp*func(nx-5,j,k) &
+                -3920.0_dp*func(nx-6,j,k) + 960.0_dp*func(nx-7,j,k) &
+                -105.0_dp*func(nx-8,j,k) ) / (840.0_dp*hx)
 
-            derivative(i,j,k) = -( &
-            -2283.0_dp*func(nx,j,k) + 6720.0_dp*func(nx-1,j,k) &
-            -11760.0_dp*func(nx-2,j,k) + 15680.0_dp*func(nx-3,j,k) &
-            -14700.0_dp*func(nx-4,j,k) + 9408.0_dp*func(nx-5,j,k) &
-            -3920.0_dp*func(nx-6,j,k) + 960.0_dp*func(nx-7,j,k) &
-            -105.0_dp*func(nx-8,j,k) ) / (840.0_dp*hx)
-
-        end if
+            end if
+        end do
+        end do
+        end do
     end subroutine d_x_cp
 
     subroutine d_y_cp(func, hy, derivative)
@@ -484,8 +489,10 @@ contains
         nz = size(func,3)
 
         if (ny < 9) stop "d_y: size(func,2) must be >= 9"
-
-        if (j >= 5 .and. j <= ny-4) then
+        do k = 1, nz
+            do j = 1, ny
+                do i = 1, nx
+                    if (j >= 5 .and. j <= ny-4) then
 
             derivative(i,j,k) = ( &
                 3.0_dp*func(i,j-4,k) - 32.0_dp*func(i,j-3,k) &
@@ -566,6 +573,10 @@ contains
             -105.0_dp*func(i,ny-8,k) ) / (840.0_dp*hy)
 
         end if
+        
+                end do
+            end do
+        end do
     end subroutine d_y_cp
 
     subroutine d_z_cp(func, hz, derivative)
@@ -583,7 +594,10 @@ contains
 
         if (nz < 9) stop "d_z: size(func,3) must be >= 9"
 
-        if (k >= 5 .and. k <= nz-4) then
+        do k = 1, nz
+            do j = 1, ny
+                do i = 1, nx
+                    if (k >= 5 .and. k <= nz-4) then
 
             derivative(i,j,k) = ( &
                 3.0_dp*func(i,j,k-4) - 32.0_dp*func(i,j,k-3) &
@@ -664,6 +678,10 @@ contains
             -105.0_dp*func(i,j,nz-8) ) / (840.0_dp*hz)
 
         end if
+        
+                end do
+            end do
+        end do
     end subroutine d_z_cp
 
 end module three_D_derivative_cp_mod

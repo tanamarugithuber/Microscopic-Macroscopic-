@@ -31,8 +31,8 @@ contains
                 theta = acos(x)
                 solution = 0.0_dp
                 do i = 0, n
-                    solution = solution + cos((n - 2*i)*theta)*gamma(real(2*n -2*i, dp ))*gamma(real(2*i, dp )) &
-                    / (gamma(real(n - i, dp ))**2*gamma(real(i, dp ))**2*2.0_dp**(2*n))
+                    solution = solution + cos((n - 2*i)*theta)*gamma(real(2*n -2*i+1, dp ))*gamma(real(2*i+1, dp )) &
+                    / (gamma(real(n - i+1, dp ))**2*gamma(real(i+1, dp ))**2*2.0_dp**(2*n))
                 end do
             end if
         end function LegendreP
@@ -87,7 +87,7 @@ contains
              ! This function can be used to calculate the spherical harmonic function, which is often used in nuclear physics calculations.
             ! This function can be used to calculate the spherical harmonic function, which is often used in nuclear physics calculations.
             ! The actual implementation of the function will depend on the specific model being used for the energy calculation.
-            solution = sqrt((2.0_dp*l + 1.0_dp)/(4.0_dp*pi)*gamma(real(l - abs(m), dp ))/gamma(real(l + abs(m), dp ))) &
+            solution = sqrt((2.0_dp*l + 1.0_dp)/(4.0_dp*pi)*gamma(real(l - abs(m)+1, dp ))/gamma(real(l + abs(m)+1, dp ))) &
             * LegendreP(l, cos(theta)) * exp(1.0_dp*cmplx(0.0_dp, 1.0_dp)*m*phi)* (-1.0_dp)**((m+abs(m))*0.5_dp)
         end function spherical_harmonic
 
