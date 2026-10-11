@@ -64,6 +64,20 @@ gfortran -O2 -fopenmp constant_mod.f90 ho_basis_mod.f90 potential_gh_mod.f90 tes
 
 既知の制限：∇V₁ は表面で折れ曲がる（2階微分が不連続な）ため，スピン軌道項の行列要素の Gauss–Hermite 求積の収束が遅く，球形核でも (2j+1) 重縮退が数十 keV ほど分裂します（²⁰⁸Pb で最大 0.04 MeV）．部分積分で ∇V₁ の代わりに V₁ を使う形にすると改善できる見込みです．
 
+## 空間格子 (grid_mod.f90)
+
+格子の範囲は変形パラメータ (ε, γ) から決めます．`nucleus%epsilon2`（ε）と `nucleus%gamma_deg`（γ，度）を設定してから `initialize_grid` を呼びます．
+
+- 半軸 R_x, R_y, R_z は `semi_axes_from_eps_gamma` で求めます．振動数 ω_i に反比例し，R_x R_y R_z = R_a³（体積保存）です．ho_basis_mod，potential_gh_mod と同じ規約です．
+- γ = 0 は z 軸まわりの軸対称（ε > 0 で長楕円），γ = 60° は x 軸まわりの扁平形です．
+- 内外判定は三軸楕円体 (x/R_x)² + (y/R_y)² + (z/R_z)² ≤ 1 で行います．
+- `grid%cubic = .true.`（既定）では，一番長い半軸に合わせた立方体の箱にします．CG_method_mod が n_x = n_y = n_z を仮定しているためです．`.false.` にすると軸ごとに箱の大きさを決めます．
+
+```bash
+gfortran -O2 -fopenmp constant_mod.f90 nucleus_mod.f90 grid_mod.f90 test_grid.f90 -o test_grid.exe
+./test_grid.exe
+```
+
 ## 運用
 
 1. [プロジェクトのフォークを作成]

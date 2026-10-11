@@ -30,6 +30,8 @@ program main
     nucleus%N = 8
     nucleus%Z = 8
     nucleus%semi1 = nucleus%R0*(nucleus%Z + nucleus%N)**(1.0_dp/3.0_dp)
+    nucleus%epsilon2 = 0.0_dp   ! deformation epsilon; the grid is built from (epsilon2, gamma_deg)
+    nucleus%gamma_deg = 0.0_dp  ! triaxiality gamma in degree
     call nucleus%calculate_fundamental_properties()
 
     ! Initialize grid
