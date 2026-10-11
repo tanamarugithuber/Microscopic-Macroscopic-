@@ -25,7 +25,9 @@ contains
         nz = size(func,3)
 
         if (nx < 9) stop "d_x: size(func,1) must be >= 9"
-
+        do k = 1, nz
+            do j = 1, ny
+                do i = 1, nx
         ! 9 point derivative in x-direction
         if (i >= 5 .and. i <= nx-4) then
 
@@ -108,6 +110,10 @@ contains
             -105.0_dp*func(nx-8,j,k) ) / (840.0_dp*hx)
 
         end if
+        
+                end do
+            end do
+        end do
     end subroutine d_x
 
     subroutine d_y(func, hy, derivative)
@@ -124,6 +130,9 @@ contains
         nz = size(func,3)
 
         if (ny < 9) stop "d_y: size(func,2) must be >= 9"
+        do k = 1, nz
+            do i = 1, nx
+                do j = 1, ny
 
         if (j >= 5 .and. j <= ny-4) then
 
@@ -154,11 +163,11 @@ contains
         else if (j == 3) then
 
             derivative(i,j,k) = ( &
-            15.0_dp*func(i,j-4,k) - 240.0_dp*func(i,j-3,k) &
-            -798.0_dp*func(i,j-2,k) + 1680.0_dp*func(i,j-1,k) &
-            -1050.0_dp*func(i,j+1,k) + 560.0_dp*func(i,j+2,k) &
-            -210.0_dp*func(i,j+3,k) + 48.0_dp*func(i,j+4,k) &
-            -5.0_dp*func(i,j+5,k) ) / (840.0_dp*hy)
+            15.0_dp*func(i,1,k) - 240.0_dp*func(i,2,k) &
+            -798.0_dp*func(i,3,k) + 1680.0_dp*func(i,4,k) &
+            -1050.0_dp*func(i,5,k) + 560.0_dp*func(i,6,k) &
+            -210.0_dp*func(i,7,k) + 48.0_dp*func(i,8,k) &
+            -5.0_dp*func(i,9,k) ) / (840.0_dp*hy)
 
         else if (j == 4) then
 
@@ -190,11 +199,11 @@ contains
         else if (j == ny-1) then
 
             derivative(i,j,k) = -( &
-            -105.0_dp*func(i,1,k) - 1338.0_dp*func(i,2,k) &
-            +2940.0_dp*func(i,3,k) - 2940.0_dp*func(i,4,k) &
-            +2450.0_dp*func(i,5,k) - 1470.0_dp*func(i,6,k) &
-            +588.0_dp*func(i,7,k) - 140.0_dp*func(i,8,k) &
-            +15.0_dp*func(i,9,k) ) / (840.0_dp*hy)
+            -105.0_dp*func(i,ny,k) - 1338.0_dp*func(i,ny-1,k) &
+            +2940.0_dp*func(i,ny-2,k) - 2940.0_dp*func(i,ny-3,k) &
+            +2450.0_dp*func(i,ny-4,k) - 1470.0_dp*func(i,ny-5,k) &
+            +588.0_dp*func(i,ny-6,k) - 140.0_dp*func(i,ny-7,k) &
+            +15.0_dp*func(i,ny-8,k) ) / (840.0_dp*hy)
 
         else if (j == ny) then
 
@@ -206,6 +215,10 @@ contains
             -105.0_dp*func(i,ny-8,k) ) / (840.0_dp*hy)
 
         end if
+        
+                end do
+            end do
+        end do
     end subroutine d_y
 
     subroutine d_z(func, hz, derivative)
@@ -222,6 +235,9 @@ contains
         nz = size(func,3)
 
         if (nz < 9) stop "d_z: size(func,3) must be >= 9"
+        do k = 1, nz
+            do j = 1, ny
+                do i = 1, nx
 
         if (k >= 5 .and. k <= nz-4) then
 
@@ -304,6 +320,10 @@ contains
             -105.0_dp*func(i,j,nz-8) ) / (840.0_dp*hz)
 
         end if
+        
+                end do
+            end do
+        end do
     end subroutine d_z
 
     subroutine dd_x(func, hx, second_derivative)
