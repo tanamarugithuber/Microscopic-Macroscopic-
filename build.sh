@@ -9,7 +9,7 @@ export OMP_NUM_THREADS=4
 gfortran -fopenmp -c constant_mod.f90
 gfortran -fopenmp -c nucleus_mod.f90
 gfortran -fopenmp -c grid_mod.f90
-gfortran -fopenmp -c CG_method_mod.f90
+gfortran -fopenmp -c fundamental/CG_method_mod.f90
 gfortran -fopenmp -c frldm_mod.f90
 gfortran -fopenmp -c main.f90
 
