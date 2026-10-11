@@ -32,7 +32,8 @@ module nucleus_mod
         !---------------------------
         ! Variables deformation parameters
         !---------------------------
-        real(dp) :: epsilon2
+        real(dp) :: epsilon2 = 0.0_dp ! quadrupole deformation epsilon
+        real(dp) :: gamma_deg = 0.0_dp ! triaxiality gamma in degree (0: axially symmetric about z)
         real(dp) :: epsilon3
         real(dp) :: epsilon4
         real(dp) :: epsilon5
