@@ -4,7 +4,6 @@ module frldm_mod
     use constant_mod, only: e2, pi
     use nucleus_mod, only: nucleus_property
     use grid_mod, only: grid_type
-    use CG_method_mod
     use hockney_mod, only: hockney_coulomb, hockney_yukawa, hockney_exp
     implicit none
     private

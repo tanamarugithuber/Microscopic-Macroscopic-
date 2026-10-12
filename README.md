@@ -38,7 +38,6 @@ graph TD;
 
 - FRLDM：constant_mod → nucleus_mod → grid_mod → frldm_mod（B_1, B_3 は calculate_potential_hockney）→ main
 - Shell+BCS：ho_basis_mod（三軸変形 HO 基底）と potential_gh_mod（求積点上の V1, ∇V1, VC）で一粒子準位を求め，shell_bcs_mod でシェル補正と BCS を計算する予定です．ho_basis_mod と potential_gh_mod は互いに use していません（test_potential_gh.f90 で組み合わせています）．shell_bcs_mod はまだ中身がなく，main からも呼ばれていません．
-- frldm_mod と main は `use CG_method_mod` が残っていますが，CG のルーチンはもう呼んでいません．
 
 ### テストプログラム
 
@@ -49,26 +48,15 @@ graph TD;
     ho_basis_mod.f90-->test_potential_gh.f90;
     potential_gh_mod.f90-->test_potential_gh.f90;
     calculate_potential_hockney.f90-->test_hockney.f90;
-    calculate_coulomb_FFT.f90-->test_coulomb_fft.f90;
 ```
 
-### 旧方式（格子 + Lanczos / 虚時間）のファイル
+### 使わないファイル (not_use/)
 
-```mermaid
-graph TD;
-    grid_mod.f90-->micro_constant_mod.f90;
-    micro_constant_mod.f90-->Micro_potential_mod.f90;
-    fundamental/CG_method_mod.f90-->Micro_potential_mod.f90;
-    fundamental/3Dderivative_mod.f90-->Micro_potential_mod.f90;
-    Micro_potential_mod.f90-->EV_Lanczos.f90;
-    fundamental/common_func_mod.f90-->EV_Lanczos.f90;
-    micro_constant_mod.f90-->Imarginary_time_mod.f90;
-    fundamental/3Dderivative_cp_mod.f90-->Imarginary_time_mod.f90;
-    fundamental/calculate_vector_cp.f90-->Imarginary_time_mod.f90;
-    grid_mod.f90-->calculate_potential_mod.f90;
-```
+FRLDM+Shell+BCS の計算に使わないファイルは not_use/ にまとめています（ビルドには含めません）．
 
-calculate_coulomb_FFT.f90（FALR 法）と fundamental/FFT_integral_mod.f90 はどこからも use されていません．
+- 旧方式（格子 + Lanczos / 虚時間）：Micro_potential_mod.f90，EV_Lanczos.f90，Imarginary_time_mod.f90，calculate_potential_mod.f90，fundamental/（CG_method_mod.f90，3Dderivative_mod.f90，3Dderivative_cp_mod.f90，calculate_vector_cp.f90，common_func_mod.f90，FFT_integral_mod.f90）
+- FALR 法のクーロン計算：calculate_coulomb_FFT.f90，test_coulomb_fft.f90（Hockney 法に置き換えました）
+- その他：io_mod.f90（空），data.text（以前の出力）
 
 ## 三軸変形調和振動子基底 (ho_basis_mod.f90)
 
@@ -102,14 +90,14 @@ gfortran -O2 -fopenmp constant_mod.f90 ho_basis_mod.f90 potential_gh_mod.f90 tes
 - 半軸 R_x, R_y, R_z は `semi_axes_from_eps_gamma` で求めます．振動数 ω_i に反比例し，R_x R_y R_z = R_a³（体積保存）です．ho_basis_mod，potential_gh_mod と同じ規約です．
 - γ = 0 は z 軸まわりの軸対称（ε > 0 で長楕円），γ = 60° は x 軸まわりの扁平形です．
 - 内外判定は三軸楕円体 (x/R_x)² + (y/R_y)² + (z/R_z)² ≤ 1 で行います．
-- `grid%cubic = .true.`（既定）では，一番長い半軸に合わせた立方体の箱にします．CG_method_mod が n_x = n_y = n_z を仮定しているためです．`.false.` にすると軸ごとに箱の大きさを決めます．
+- `grid%cubic = .true.`（既定）では，一番長い半軸に合わせた立方体の箱にします．以前の CG_method_mod が n_x = n_y = n_z を仮定していたためです（Hockney 法は直方体の箱でも計算できます）．`.false.` にすると軸ごとに箱の大きさを決めます．
 
 ```bash
 gfortran -O2 -fopenmp constant_mod.f90 nucleus_mod.f90 grid_mod.f90 test_grid.f90 -o test_grid.exe
 ./test_grid.exe
 ```
 
-## クーロンポテンシャル (calculate_coulomb_FFT.f90)
+## クーロンポテンシャル (not_use/calculate_coulomb_FFT.f90，現在は未使用)
 
 クーロンポテンシャル V(r) = ∫ρ(r′)/|r − r′| d³r′ を，Lauritsch–Reinhard の FALR 法（thesis/FFTcoulomb.pdf）で計算します．箱の境界でディリクレ条件を課す CG_method_poisson3D の代わりに，無限遠で V → 0 という正しい境界条件になります．
 
@@ -120,7 +108,7 @@ gfortran -O2 -fopenmp constant_mod.f90 nucleus_mod.f90 grid_mod.f90 test_grid.f9
 論文は l_cut = 2 ですが，変形核は十六重極モーメントが大きいので l_cut = 4 にしています．呼び方は `call calculate_coulomb(rho, R, h, V)` です（R は参照密度の半径で，`nucleus%R_a` を渡します）．FFTW3 が必要です（Ubuntu は `sudo apt install libfftw3-dev`，Windows は MSYS2 の `pacman -S mingw-w64-x86_64-fftw`）．
 
 ```bash
-gfortran -O2 -fopenmp -I/usr/include constant_mod.f90 calculate_coulomb_FFT.f90 test_coulomb_fft.f90 -lfftw3 -o test_coulomb_fft.exe
+gfortran -O2 -fopenmp -I/usr/include constant_mod.f90 not_use/calculate_coulomb_FFT.f90 not_use/test_coulomb_fft.f90 -lfftw3 -o test_coulomb_fft.exe
 ./test_coulomb_fft.exe
 ```
 

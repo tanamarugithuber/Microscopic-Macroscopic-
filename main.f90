@@ -4,7 +4,6 @@ program main
     use constant_mod
     use nucleus_mod
     use grid_mod
-    use CG_method_mod
     use frldm_mod
 
     implicit none

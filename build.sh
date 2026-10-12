@@ -9,8 +9,6 @@ export OMP_NUM_THREADS=4
 gfortran -fopenmp -c constant_mod.f90
 gfortran -fopenmp -c nucleus_mod.f90
 gfortran -fopenmp -c grid_mod.f90
-gfortran -fopenmp -c fundamental/CG_method_mod.f90
-gfortran -fopenmp -I/usr/include -c calculate_coulomb_FFT.f90
 gfortran -fopenmp -I/usr/include -c calculate_potential_hockney.f90
 gfortran -fopenmp -c frldm_mod.f90
 gfortran -fopenmp -c main.f90
@@ -19,8 +17,6 @@ gfortran -fopenmp \
     constant_mod.o \
     nucleus_mod.o \
     grid_mod.o \
-    CG_method_mod.o \
-    calculate_coulomb_FFT.o \
     calculate_potential_hockney.o \
     frldm_mod.o \
     main.o \
