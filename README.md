@@ -25,7 +25,7 @@ graph TD;
     constant_mod.f90-->nucleus_mod.f90;
     nucleus_mod.f90-->grid_mod.f90;
     grid_mod.f90-->frldm_mod.f90;
-    calculate_coulomb_FFT.f90-->frldm_mod.f90;
+    calculate_potential_hockney.f90-->frldm_mod.f90;
     grid_mod.f90-->micro_constant_mod.f90;
     micro_constant_mod.f90-->calculate_coulomb_FFT.f90
     calculate_coulomb_FFT.f90-->Micro_potential_mod.f90
@@ -81,7 +81,7 @@ gfortran -O2 -fopenmp constant_mod.f90 nucleus_mod.f90 grid_mod.f90 test_grid.f9
 
 ## クーロンポテンシャル (calculate_coulomb_FFT.f90)
 
-FRLDM の B_3 に使うクーロンポテンシャル V(r) = ∫ρ(r′)/|r − r′| d³r′ を，Lauritsch–Reinhard の FALR 法（thesis/FFTcoulomb.pdf）で計算します．箱の境界でディリクレ条件を課す CG_method_poisson3D の代わりに，無限遠で V → 0 という正しい境界条件になります．
+クーロンポテンシャル V(r) = ∫ρ(r′)/|r − r′| d³r′ を，Lauritsch–Reinhard の FALR 法（thesis/FFTcoulomb.pdf）で計算します．箱の境界でディリクレ条件を課す CG_method_poisson3D の代わりに，無限遠で V → 0 という正しい境界条件になります．
 
 1. 多重極モーメント q_lm（l ≤ 4）を求め，同じモーメントをもつ ρ_long = Σ a_lm ρ_l(r) S_lm を作ります．
 2. V_long は l ごとの動径方程式をグリーン関数で解きます．
@@ -92,6 +92,20 @@ FRLDM の B_3 に使うクーロンポテンシャル V(r) = ∫ρ(r′)/|r − 
 ```bash
 gfortran -O2 -fopenmp -I/usr/include constant_mod.f90 calculate_coulomb_FFT.f90 test_coulomb_fft.f90 -lfftw3 -o test_coulomb_fft.exe
 ./test_coulomb_fft.exe
+```
+
+## 自由空間の畳み込み (calculate_potential_hockney.f90)
+
+Hockney 法で，クーロン ∫ρ/|r−r′|，湯川 ∫ρ e^{−|r−r′|/a}/|r−r′|，指数 ∫ρ e^{−|r−r′|/a} の 3 種類のポテンシャルを計算します．frldm_mod の B_1, B_3 はこれを使います．
+
+- 格子を各軸 2 倍の箱に入れて残りを 0 で埋め，FFT で巡回畳み込みをとります．元の格子の 2 点間の距離は 2 倍の箱の半分を超えないので，自由空間の和と厳密に一致します．箱の境界条件は不要です．
+- 核は各セルでの平均値を使います（自己セルは 1/r の立方体積分 2.3800773…/h）．このため，セルごとに一定の密度（grid_mod の内外判定 `density_index3D`）に対しては厳密です．滑らかな密度を点の値で渡すときは `smooth = .true.` にします．
+- B_1 の核 (2a/r − 1)e^{−r/a} と B_3 の核 1/r − (1/r + 1/(2a))e^{−r/a} を同じ方法で畳み込むので，以前の O(N²) の二重和が不要になりました．
+- メモリは格子の 8 倍です．FFTW3 が必要です．
+
+```bash
+gfortran -O2 -fopenmp -I/usr/include constant_mod.f90 calculate_potential_hockney.f90 test_hockney.f90 -lfftw3 -o test_hockney.exe
+./test_hockney.exe
 ```
 
 ## 運用

@@ -5,7 +5,7 @@ module frldm_mod
     use nucleus_mod, only: nucleus_property
     use grid_mod, only: grid_type
     use CG_method_mod
-    use calculate_coulomb_FFT_mod, only: calculate_coulomb
+    use hockney_mod, only: hockney_coulomb, hockney_yukawa, hockney_exp
     implicit none
     private
 
@@ -226,6 +226,7 @@ module frldm_mod
             real(dp) :: B1_sum, B3_sum
             real(dp), allocatable :: pi_rho(:)
             real(dp), allocatable :: pi_rho3d(:,:,:)
+            real(dp), allocatable :: W_1(:,:,:), W_3(:,:,:)
             print *, "Calculating B_1 and B_3 for the FRLDM..."
 
             denominator1 = 8.0_dp * pi**2 * nucleus%R0**2 * a_Yukawa**4
@@ -237,11 +238,6 @@ module frldm_mod
             allocate(this%B_3pot_y3d(g_mod%n_x_points, g_mod%n_y_points, g_mod%n_z_points))
             allocate(this%B_3pot_c3d(g_mod%n_x_points, g_mod%n_y_points, g_mod%n_z_points))
 
-            ! 4pi*rho
-            ! allocate(pi_rho(g_mod%n_points))
-            allocate(pi_rho3d(g_mod%n_x_points, g_mod%n_y_points, g_mod%n_z_points))
-            ! pi_rho = g_mod%density_index* (4.0_dp * pi )
-            pi_rho3d(:,:,:) = g_mod%density_index3D(:,:,:) * (4.0_dp * pi)
 
 
 
@@ -249,101 +245,26 @@ module frldm_mod
             ! call CG_method_helmholtz_EQ(pi_rho, this%B_3pot_y, g_mod%n_x_points, g_mod%h_x, a_den_inv)
             ! call CG_method_poisson(g_mod%density_index, this%B_3pot_c, g_mod%n_x_points, g_mod%h_x)
 
-            call CG_method_helmholtz_EQ3D(pi_rho3d, this%B_1pot_y3d, g_mod%n_x_points, g_mod%h_x, a_Yukawa_inv)
-            call CG_method_helmholtz_EQ3D(pi_rho3d, this%B_3pot_y3d, g_mod%n_x_points, g_mod%h_x, a_den_inv)
-            ! Coulomb part: FALR (multipole + FFT) with the exact boundary condition at infinity
-            ! (replaces CG_method_poisson3D, which imposed a Dirichlet condition on the box)
-            call calculate_coulomb(g_mod%density_index3D, nucleus%R_a, g_mod%h_x, this%B_3pot_c3d)
+            ! Yukawa and Coulomb potentials of the sharp-surface density by Hockney's method
+            ! (free-space FFT convolution, exact boundary condition at infinity).
+            ! These replace CG_method_helmholtz_EQ3D / CG_method_poisson3D, which imposed a
+            ! Dirichlet condition on the box, and the O(N^2) double sum over B_1exp / B_3exp.
+            ! density_index3D is constant in each cell (smooth = .false.).
+            !   B_1 kernel: (2 - r/a) exp(-r/a) / (r/a) = 2a exp(-r/a)/r - exp(-r/a)
+            !   B_3 kernel: 1/r - (1 + r/(2a)) exp(-r/a)/r = 1/r - exp(-r/a)/r - exp(-r/a)/(2a)
+            ! Both parts of each kernel use the same cell-averaged quadrature, so their large
+            ! cancellation (the kernels integrate to zero in the bulk) is not spoiled.
+            allocate(W_1(g_mod%n_x_points, g_mod%n_y_points, g_mod%n_z_points))
+            allocate(W_3(g_mod%n_x_points, g_mod%n_y_points, g_mod%n_z_points))
+            call hockney_yukawa(g_mod%density_index3D, g_mod%h_x, a_Yukawa, this%B_1pot_y3d)
+            call hockney_exp(g_mod%density_index3D, g_mod%h_x, a_Yukawa, W_1)
+            call hockney_yukawa(g_mod%density_index3D, g_mod%h_x, a_den, this%B_3pot_y3d)
+            call hockney_exp(g_mod%density_index3D, g_mod%h_x, a_den, W_3)
+            call hockney_coulomb(g_mod%density_index3D, g_mod%h_x, this%B_3pot_c3d)
 
-            call this%calculate_exp(g_mod)
-            B1_sum = 0.0_dp
-            B3_sum = 0.0_dp
-
-            !$omp parallel do default(none) collapse(3) &
-            !$omp private(i,j,k,l,m,n,o,p) &
-            !$omp shared(this, g_mod, a_den_inv) &
-            !$omp reduction(+:B1_sum, B3_sum)
-            do k = 1 , g_mod%n_z_points
-                do j = 1, g_mod%n_y_points
-                    do i = 1, g_mod%n_x_points
-
-                        o = (k-1)*g_mod%n_x_points*g_mod%n_y_points &
-                        + (j-1)*g_mod%n_x_points + i
-                        ! if (g_mod%density_index(o) == 0.0_dp) cycle
-                        if (g_mod%density_index3D(i,j,k) == 0.0_dp) cycle
-
-                        do n = 1, g_mod%n_z_points
-                            do m = 1, g_mod%n_y_points
-                                do l = 1, g_mod%n_x_points
-
-                                    p = (n-1)*g_mod%n_x_points*g_mod%n_y_points &
-                                    + (m-1)*g_mod%n_x_points + l
-                                    ! if (g_mod%density_index(p) == 0.0_dp) cycle
-                                    if (g_mod%density_index3D(l,m,n) == 0.0_dp) cycle
-
-                                    ! B1_sum = B1_sum &
-                                    !     - this%B_1exp(i-l,j-m,k-n) &
-                                    !     * g_mod%dV**2 &
-                                    !     * g_mod%density_index(p) &
-                                    !     * g_mod%density_index(o)
-
-                                    B1_sum = B1_sum &
-                                        - this%B_1exp(i-l,j-m,k-n) &
-                                        * g_mod%dV**2 &
-                                        * g_mod%density_index3D(l,m,n) &
-                                        * g_mod%density_index3D(i,j,k)
-
-                                    ! B3_sum = B3_sum &
-                                    !     - this%B_3exp(i-l,j-m,k-n) &
-                                    !     * g_mod%dV**2 &
-                                    !     * 0.5_dp * a_den_inv &
-                                    !     * g_mod%density_index(p) &
-                                    !     * g_mod%density_index(o)
-                                    B3_sum = B3_sum &
-                                        - this%B_3exp(i-l,j-m,k-n) &
-                                        * g_mod%dV**2 &
-                                        * 0.5_dp * a_den_inv &
-                                        * g_mod%density_index3D(l,m,n) &
-                                        * g_mod%density_index3D(i,j,k)
-
-                                end do
-                            end do
-                        end do
-                    end do
-                end do
-            end do
-            !$omp end parallel do
-
-            !$omp parallel do default(none) private(o) &
-            !$omp shared(this,g_mod) &
-            !$omp reduction(+:B1_sum,B3_sum)
-            ! do o = 1, g_mod%n_points
-            !     if (g_mod%density_index(o) == 0.0_dp) cycle
-            !     B1_sum = B1_sum + 2.0_dp * this%B_1pot_y(o) &
-            !             * g_mod%dV * g_mod%density_index(o) * a_Yukawa
-
-            !     B3_sum = B3_sum + (this%B_3pot_c(o) - this%B_3pot_y(o)) &
-            !             * g_mod%density_index(o) * g_mod%dV
-            ! end do
-                do k = 1, g_mod%n_z_points
-                    do j = 1, g_mod%n_y_points
-                        do i = 1, g_mod%n_x_points
-    
-                            o = (k-1)*g_mod%n_x_points*g_mod%n_y_points &
-                            + (j-1)*g_mod%n_x_points + i
-                            if (g_mod%density_index3D(i,j,k) == 0.0_dp) cycle
-    
-                            B1_sum = B1_sum + 2.0_dp * this%B_1pot_y3d(i,j,k) &
-                                    * g_mod%dV * g_mod%density_index3D(i,j,k) * a_Yukawa
-    
-                            B3_sum = B3_sum + (this%B_3pot_c3d(i,j,k) - this%B_3pot_y3d(i,j,k)) &
-                                    * g_mod%density_index3D(i,j,k) * g_mod%dV
-    
-                        end do
-                    end do
-                end do
-
-            !$omp end parallel do
+            B1_sum = sum((2.0_dp * a_Yukawa * this%B_1pot_y3d - W_1) * g_mod%density_index3D) * g_mod%dV
+            B3_sum = sum((this%B_3pot_c3d - this%B_3pot_y3d - 0.5_dp * a_den_inv * W_3) &
+                         * g_mod%density_index3D) * g_mod%dV
 
             this%B_1 = B1_sum / denominator1 * nucleus%A**(-2.0_dp / 3.0_dp)
             this%B_3 = B3_sum / denominator3 * 15.0_dp * nucleus%A**(-5.0_dp / 3.0_dp)
@@ -355,9 +276,7 @@ module frldm_mod
             deallocate(this%B_1pot_y3d)
             deallocate(this%B_3pot_y3d)
             deallocate(this%B_3pot_c3d)
-            deallocate(pi_rho3d)
-            deallocate(this%B_1exp)
-            deallocate(this%B_3exp)
+            deallocate(W_1, W_3)
             print *, "B_1 and B_3 calculated."
 
         end subroutine calculate_b_1_b_3
