@@ -10,6 +10,7 @@ gfortran -fopenmp -c constant_mod.f90
 gfortran -fopenmp -c nucleus_mod.f90
 gfortran -fopenmp -c grid_mod.f90
 gfortran -fopenmp -c fundamental/CG_method_mod.f90
+gfortran -fopenmp -I/usr/include -c calculate_coulomb_FFT.f90
 gfortran -fopenmp -c frldm_mod.f90
 gfortran -fopenmp -c main.f90
 
@@ -18,6 +19,8 @@ gfortran -fopenmp \
     nucleus_mod.o \
     grid_mod.o \
     CG_method_mod.o \
+    calculate_coulomb_FFT.o \
     frldm_mod.o \
     main.o \
+    -lfftw3 \
     -o main.exe

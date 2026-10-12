@@ -25,6 +25,7 @@ graph TD;
     constant_mod.f90-->nucleus_mod.f90;
     nucleus_mod.f90-->grid_mod.f90;
     grid_mod.f90-->frldm_mod.f90;
+    calculate_coulomb_FFT.f90-->frldm_mod.f90;
     grid_mod.f90-->micro_constant_mod.f90;
     micro_constant_mod.f90-->calculate_coulomb_FFT.f90
     calculate_coulomb_FFT.f90-->Micro_potential_mod.f90
@@ -76,6 +77,21 @@ gfortran -O2 -fopenmp constant_mod.f90 ho_basis_mod.f90 potential_gh_mod.f90 tes
 ```bash
 gfortran -O2 -fopenmp constant_mod.f90 nucleus_mod.f90 grid_mod.f90 test_grid.f90 -o test_grid.exe
 ./test_grid.exe
+```
+
+## クーロンポテンシャル (calculate_coulomb_FFT.f90)
+
+FRLDM の B_3 に使うクーロンポテンシャル V(r) = ∫ρ(r′)/|r − r′| d³r′ を，Lauritsch–Reinhard の FALR 法（thesis/FFTcoulomb.pdf）で計算します．箱の境界でディリクレ条件を課す CG_method_poisson3D の代わりに，無限遠で V → 0 という正しい境界条件になります．
+
+1. 多重極モーメント q_lm（l ≤ 4）を求め，同じモーメントをもつ ρ_long = Σ a_lm ρ_l(r) S_lm を作ります．
+2. V_long は l ごとの動径方程式をグリーン関数で解きます．
+3. 残りの ρ_short = ρ − ρ_long は多重極をもたないので，FFT（V = 4πρ̃/k²）で解いても周期像の影響がほとんど残りません．k = 0 成分は −(2π/3)∫r²ρ_short で決めます．
+
+論文は l_cut = 2 ですが，変形核は十六重極モーメントが大きいので l_cut = 4 にしています．呼び方は `call calculate_coulomb(rho, R, h, V)` です（R は参照密度の半径で，`nucleus%R_a` を渡します）．FFTW3 が必要です（Ubuntu は `sudo apt install libfftw3-dev`，Windows は MSYS2 の `pacman -S mingw-w64-x86_64-fftw`）．
+
+```bash
+gfortran -O2 -fopenmp -I/usr/include constant_mod.f90 calculate_coulomb_FFT.f90 test_coulomb_fft.f90 -lfftw3 -o test_coulomb_fft.exe
+./test_coulomb_fft.exe
 ```
 
 ## 運用

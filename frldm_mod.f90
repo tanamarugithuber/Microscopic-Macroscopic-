@@ -5,6 +5,7 @@ module frldm_mod
     use nucleus_mod, only: nucleus_property
     use grid_mod, only: grid_type
     use CG_method_mod
+    use calculate_coulomb_FFT_mod, only: calculate_coulomb
     implicit none
     private
 
@@ -250,7 +251,9 @@ module frldm_mod
 
             call CG_method_helmholtz_EQ3D(pi_rho3d, this%B_1pot_y3d, g_mod%n_x_points, g_mod%h_x, a_Yukawa_inv)
             call CG_method_helmholtz_EQ3D(pi_rho3d, this%B_3pot_y3d, g_mod%n_x_points, g_mod%h_x, a_den_inv)
-            call CG_method_poisson3D(g_mod%density_index3D, this%B_3pot_c3d, g_mod%n_x_points, g_mod%h_x)
+            ! Coulomb part: FALR (multipole + FFT) with the exact boundary condition at infinity
+            ! (replaces CG_method_poisson3D, which imposed a Dirichlet condition on the box)
+            call calculate_coulomb(g_mod%density_index3D, nucleus%R_a, g_mod%h_x, this%B_3pot_c3d)
 
             call this%calculate_exp(g_mod)
             B1_sum = 0.0_dp
