@@ -3,7 +3,6 @@ module micro_constant_mod
     use iso_fortran_env, only: real64
     use constant_mod, only: pi, e2
     use nucleus_mod, only: nucleus_property
-    use grid_mod, only: grid_type
     implicit none
     private
 
@@ -40,7 +39,9 @@ module micro_constant_mod
     !---------------------------
     ! fourth category constants
     !---------------------------
-    real(dp), parameter, public :: r_mic = 3.2_dp  ! LN effective-interaction pairing-gap constant
+    real(dp), parameter, public :: r_mic = 3.2_dp  ! MeV, LN effective-interaction pairing-gap constant
+    real(dp), parameter, public :: mi_r_mac = 4.80_dp ! MeV, average pairing-gap constant of the macroscopic
+                                                      ! model (= r_mac of frldm_mod), Eqs. (63), (64)
     real(dp), parameter, public :: frK = 0.2475_dp ! Zero-point energy constant
     real(dp), parameter, public :: a_2 = 22.00_dp  ! surface-energy constant in MeV
     real(dp), parameter, public :: mi_J = 35.0_dp  ! symmetry-energy constant in MeV
@@ -49,18 +50,19 @@ module micro_constant_mod
     real(dp), parameter, public :: mi_K = 300.0_dp  ! compressibility constant in MeV
 
     !---------------------------
-    ! Variables for Microscopic calculations
+    ! Quantities of the FRDM2012 single-particle potential, Eqs. (82)-(93)
     !---------------------------
     type :: microscopic_variables
-        real(dp) :: delta_ave
-        real(dp) :: epsilon_ave
-        real(dp) :: R_den
-        real(dp) :: R_pot
-        real(dp) :: e_rho_c
-        real(dp) :: hbar_omega0
-        real(dp) :: lambda_p
+        real(dp) :: delta_ave      ! average bulk asymmetry, Eq. (86)
+        real(dp) :: epsilon_ave    ! average relative deviation of the bulk density, Eq. (87)
+        real(dp) :: R_den          ! fm, Eq. (83)
+        real(dp) :: R_pot          ! fm, Eq. (82)
+        real(dp) :: e_rho_c        ! MeV/fm^2, e times the charge density, Eq. (92)
+        real(dp) :: hbar_omega0    ! MeV, C_cur / A^(1/3)
+        real(dp) :: lambda_p       ! spin-orbit strengths, Eq. (89)
         real(dp) :: lambda_n
-        real(dp), allocatable :: mi_density_index3D(:,:,:) ! density_index3D(i,j,k) gives the wheather the grid point (i,j,k) is inside the nucleus (1) or outside the nucleus (0). And it can be used as a density if the density is assumed to be constant inside the nucleus and zero outside the nucleus.
+        real(dp) :: V_p            ! MeV, potential depths, Eqs. (84), (85)
+        real(dp) :: V_n
         contains
             procedure :: calculate_microscopic_variables
     end type microscopic_variables
@@ -68,43 +70,33 @@ module micro_constant_mod
     public :: microscopic_variables
 
     contains
-        subroutine calculate_microscopic_variables(this, nucleus, grid)
+        subroutine calculate_microscopic_variables(this, nucleus)
+            !---------------------------
+            ! Droplet-model delta_ave and epsilon_ave (Eqs. 86, 87; numerically Eqs. 119, 120)
+            ! and the radius, depths and spin-orbit strengths of the single-particle potential.
+            !---------------------------
             implicit none
             class(microscopic_variables), intent(inout) :: this
             type(nucleus_property), intent(in) :: nucleus
-            type(grid_type), intent(in) :: grid
+            real(dp) :: Z, N, A, I, c1
 
-            integer :: i, j, k
-            real(dp) :: x, y, z
-
-            this%delta_ave = ((nucleus%N - nucleus%Z) / nucleus%A * 0.0112_dp * nucleus%Z**2&
-                                / nucleus%A**(5.0_dp / 3.0_dp))/(1.0_dp + 3.15_dp * nucleus%A**(-1.0_dp / 3.0_dp))
-            this%epsilon_ave = -0.147_dp*nucleus%A**(1.0_dp / 3.0_dp) + 0.330_dp * this%delta_ave**2 + 0.00248_dp &
-                                * nucleus%Z**2 / nucleus%A**(4.0_dp / 3.0_dp)
-            this%R_den = nucleus%R0 * nucleus%A**(1.0_dp / 3.0_dp) * (1.0_dp + this%epsilon_ave)
+            Z = real(nucleus%Z, dp)
+            N = real(nucleus%N, dp)
+            A = real(nucleus%A, dp)
+            I = (N - Z) / A
+            c1 = 3.0_dp * e2 / (5.0_dp * nucleus%R0)
+            this%delta_ave = (I + 3.0_dp / 8.0_dp * c1 / mi_Q * Z**2 / A**(5.0_dp / 3.0_dp)) &
+                           / (1.0_dp + 9.0_dp / 4.0_dp * mi_J / mi_Q / A**(1.0_dp / 3.0_dp))
+            this%epsilon_ave = (-2.0_dp * a_2 / A**(1.0_dp / 3.0_dp) + mi_L * this%delta_ave**2 &
+                              + c1 * Z**2 / A**(4.0_dp / 3.0_dp)) / mi_K
+            this%R_den = nucleus%R0 * A**(1.0_dp / 3.0_dp) * (1.0_dp + this%epsilon_ave)
             this%R_pot = this%R_den + mi_A_den - mi_B_den / this%R_den
-            this%e_rho_c = nucleus%Z * e2 * 3.0_dp / (4.0_dp * pi * this%R_pot**3)
-            this%hbar_omega0 = C_cur / nucleus%A**(1.0_dp / 3.0_dp) 
-            this%lambda_p = k_p * nucleus%A + l_p
-            this%lambda_n = k_n * nucleus%A + l_n
-            
-            do k = grid%n_z_min, grid%n_z_max
-                do j = grid%n_y_min, grid%n_y_max
-                    do i = grid%n_x_min, grid%n_x_max
-                        x = (grid%n_x_min + i - 1) * grid%h_x
-                        y = (grid%n_y_min + j - 1) * grid%h_y
-                        z = (grid%n_z_min + k - 1) * grid%h_z
-                        if ((x/nucleus%semi1)**2 + (y/nucleus%semi1)**2 + (z/nucleus%semi2)**2 <= 1.0_dp) then
-                            this%mi_density_index3D(i,j,k) = 1.0_dp ! inside the nucleus
-                        else
-                            this%mi_density_index3D(i,j,k) = 0.0_dp ! outside the nucleus
-                        end if
-
-                        
-                    end do
-                end do
-            end do
-
+            this%e_rho_c = Z * e2 / (4.0_dp * pi * this%R_pot**3 / 3.0_dp)
+            this%hbar_omega0 = C_cur / A**(1.0_dp / 3.0_dp)
+            this%lambda_p = k_p * A + l_p
+            this%lambda_n = k_n * A + l_n
+            this%V_p = V_s + V_a * this%delta_ave
+            this%V_n = V_s - V_a * this%delta_ave
         end subroutine calculate_microscopic_variables
 
 end module micro_constant_mod

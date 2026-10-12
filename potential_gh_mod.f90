@@ -22,7 +22,7 @@ module potential_gh_mod
     !
     ! The surface is parametrised as r(u, v), u in [0, pi], v in [0, 2 pi], with
     !   N(u, v) = dr/du x dr/dv   (outward normal times area element)
-    ! New shapes are added by extending surface_shape.
+    ! New shapes are added by extending shape_mod::surface_shape.
     !
     ! Units:
     !   Length : fm
@@ -33,33 +33,12 @@ module potential_gh_mod
     !$ use omp_lib
     use iso_fortran_env, only: real64
     use constant_mod, only: pi
+    use shape_mod, only: surface_shape, ellipsoid_shape, epsilon_shape, ellipsoid_from_eps_gamma, &
+                         epsilon_shape_from, gauss_legendre
     implicit none
     private
 
     integer, parameter :: dp = real64
-
-    !---------------------------
-    ! Surface shapes
-    !---------------------------
-    type, abstract, public :: surface_shape
-        contains
-            procedure(surface_eval), deferred :: eval
-    end type surface_shape
-
-    abstract interface
-        pure subroutine surface_eval(this, u, v, r, N)
-            import :: surface_shape, dp
-            class(surface_shape), intent(in) :: this
-            real(dp), intent(in) :: u, v
-            real(dp), intent(out) :: r(3), N(3)
-        end subroutine surface_eval
-    end interface
-
-    type, extends(surface_shape), public :: ellipsoid_shape
-        real(dp) :: semi(3) = 0.0_dp    ! fm, semi-axes along x, y, z
-        contains
-            procedure :: eval => ellipsoid_eval
-    end type ellipsoid_shape
 
     !---------------------------
     ! Surface quadrature
@@ -92,79 +71,11 @@ module potential_gh_mod
             procedure :: volume
     end type surface_quadrature
 
-    public :: ellipsoid_from_eps_gamma
-    public :: gauss_legendre
+    ! shapes live in shape_mod; re-exported for existing callers
+    public :: surface_shape, ellipsoid_shape, epsilon_shape
+    public :: ellipsoid_from_eps_gamma, epsilon_shape_from, gauss_legendre
 
     contains
-        pure subroutine ellipsoid_eval(this, u, v, r, N)
-            !   r = (a sin u cos v, b sin u sin v, c cos u)
-            !   N = (b c sin^2 u cos v, a c sin^2 u sin v, a b sin u cos u)
-            implicit none
-            class(ellipsoid_shape), intent(in) :: this
-            real(dp), intent(in) :: u, v
-            real(dp), intent(out) :: r(3), N(3)
-            real(dp) :: su, cu, sv, cv
-
-            su = sin(u)
-            cu = cos(u)
-            sv = sin(v)
-            cv = cos(v)
-            r = [this%semi(1) * su * cv, this%semi(2) * su * sv, this%semi(3) * cu]
-            N = [this%semi(2) * this%semi(3) * su * su * cv, &
-                 this%semi(1) * this%semi(3) * su * su * sv, &
-                 this%semi(1) * this%semi(2) * su * cu]
-        end subroutine ellipsoid_eval
-
-        function ellipsoid_from_eps_gamma(R, eps, gamma) result(shape)
-            !---------------------------
-            ! Ellipsoid whose semi-axes are inversely proportional to the oscillator
-            ! frequencies of ho_basis_mod::frequencies_from_eps_gamma
-            !   R_x : R_y : R_z = 1/omega_x : 1/omega_y : 1/omega_z,   R_x R_y R_z = R^3
-            ! gamma in radian.
-            !---------------------------
-            implicit none
-            real(dp), intent(in) :: R, eps, gamma
-            type(ellipsoid_shape) :: shape
-            real(dp) :: f(3)
-
-            f(1) = 1.0_dp - 2.0_dp / 3.0_dp * eps * cos(gamma + 2.0_dp * pi / 3.0_dp)
-            f(2) = 1.0_dp - 2.0_dp / 3.0_dp * eps * cos(gamma - 2.0_dp * pi / 3.0_dp)
-            f(3) = 1.0_dp - 2.0_dp / 3.0_dp * eps * cos(gamma)
-            if (any(f <= 0.0_dp)) stop "ellipsoid_from_eps_gamma: non-positive frequency"
-            shape%semi = R / f * product(f)**(1.0_dp / 3.0_dp)
-        end function ellipsoid_from_eps_gamma
-
-        subroutine gauss_legendre(n, x, w)
-            ! Gauss-Legendre nodes and weights on [-1, 1] (Newton iteration on P_n)
-            implicit none
-            integer, intent(in) :: n
-            real(dp), intent(out) :: x(n), w(n)
-            real(dp) :: z, z1, p0, p1, p2, dp_n
-            integer :: i, k, iter
-
-            do i = 1, (n + 1) / 2
-                z = cos(pi * (i - 0.25_dp) / (n + 0.5_dp))
-                do iter = 1, 100
-                    p0 = 1.0_dp
-                    p1 = z
-                    do k = 2, n
-                        p2 = ((2 * k - 1) * z * p1 - (k - 1) * p0) / k
-                        p0 = p1
-                        p1 = p2
-                    end do
-                    if (n == 1) p0 = 1.0_dp
-                    dp_n = n * (z * p1 - p0) / (z * z - 1.0_dp)
-                    z1 = z
-                    z = z1 - p1 / dp_n
-                    if (abs(z - z1) < 1.0e-15_dp) exit
-                end do
-                x(i) = -z
-                x(n + 1 - i) = z
-                w(i) = 2.0_dp / ((1.0_dp - z * z) * dp_n * dp_n)
-                w(n + 1 - i) = w(i)
-            end do
-        end subroutine gauss_legendre
-
         subroutine initialize_surface_quadrature(this, shape, a, n_panel_u, n_panel_v, order)
             implicit none
             class(surface_quadrature), intent(inout) :: this

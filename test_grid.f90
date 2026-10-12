@@ -65,7 +65,7 @@ program test_grid
                        merge(0.0_dp, 1.0_dp, grid%n_x_points < grid%n_z_points), 0.0_dp)
         end if
         vol_grid = sum(grid%density_index3D) * grid%dV
-        call check("inside points * dV vs volume (rel)   ", abs(vol_grid / nucleus%volume - 1.0_dp), 1.0e-2_dp)
+        call check("inside points * dV vs volume (rel)   ", abs(vol_grid / nucleus%volume - 1.0_dp), 1.0e-3_dp)
         call check("1D and 3D inside counts agree        ", &
                    abs(sum(grid%density_index) - sum(grid%density_index3D)), 0.0_dp)
         deallocate(grid%density_index3D, grid%density_index)

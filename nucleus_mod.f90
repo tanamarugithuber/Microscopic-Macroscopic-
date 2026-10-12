@@ -34,10 +34,10 @@ module nucleus_mod
         !---------------------------
         real(dp) :: epsilon2 = 0.0_dp ! quadrupole deformation epsilon
         real(dp) :: gamma_deg = 0.0_dp ! triaxiality gamma in degree (0: axially symmetric about z)
-        real(dp) :: epsilon3
-        real(dp) :: epsilon4
-        real(dp) :: epsilon5
-        real(dp) :: epsilon6
+        real(dp) :: epsilon3 = 0.0_dp
+        real(dp) :: epsilon4 = 0.0_dp
+        real(dp) :: epsilon5 = 0.0_dp
+        real(dp) :: epsilon6 = 0.0_dp
 
         contains
             procedure :: calculate_fundamental_properties
@@ -67,11 +67,13 @@ module nucleus_mod
                 this%semi2 = this%R_a
                 this%volume = (4.0_dp / 3.0_dp) * pi * this%R_a**3
             else if (this%semi1 > this%semi2) then
+                ! oblate spheroid (semi1 = equatorial > semi2 = polar)
                 this%ecc = sqrt(1.0_dp - (this%semi2 / this%semi1)**2)
-                this%surface_area = 2.0_dp * pi * (this%semi1**2 + this%semi1*this%semi2 * asin(this%ecc) / this%ecc)
+                this%surface_area = 2.0_dp * pi * this%semi1**2 * (1.0_dp + (1.0_dp - this%ecc**2) * atanh(this%ecc) / this%ecc)
             else if (this%semi1 < this%semi2) then
+                ! prolate spheroid (semi1 = equatorial < semi2 = polar)
                 this%ecc = sqrt(1.0_dp - (this%semi1 / this%semi2)**2)
-                this%surface_area = 2.0_dp * pi * (this%semi1**2 + this%semi2**2 * atanh(this%ecc) / this%ecc)
+                this%surface_area = 2.0_dp * pi * this%semi1**2 * (1.0_dp + this%semi2 / (this%semi1 * this%ecc) * asin(this%ecc))
             end if
             
             print *, "Nucleus properties calculated:"
