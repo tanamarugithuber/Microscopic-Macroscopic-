@@ -18,7 +18,9 @@
 
 
 ## 各ファイルの依存関係
-→の後にあるファイルはその前にあるすべてのファイルを参照していることに注意してください．なお，すべてのファイルは./fundamental内のファイルのmoduldeを適宜参照しています．
+A --> B は「B が A を use している」ことを表します（各ファイルの `use` 文から作成）．間接的に参照しているものは省略しています（例：constant_mod.f90 はほぼすべてのファイルが use しています）．
+
+### FRLDM+Shell+BCS で使うファイル
 
 ```mermaid
 graph TD;
@@ -26,20 +28,48 @@ graph TD;
     nucleus_mod.f90-->grid_mod.f90;
     grid_mod.f90-->frldm_mod.f90;
     calculate_potential_hockney.f90-->frldm_mod.f90;
+    frldm_mod.f90-->main.f90;
+    constant_mod.f90-->calculate_potential_hockney.f90;
+    constant_mod.f90-->ho_basis_mod.f90;
+    constant_mod.f90-->potential_gh_mod.f90;
     grid_mod.f90-->micro_constant_mod.f90;
-    micro_constant_mod.f90-->calculate_coulomb_FFT.f90
-    calculate_coulomb_FFT.f90-->Micro_potential_mod.f90
-    Micro_potential_mod.f90-->EV_Lanczos.f90
-    EV_Lanczos.f90-->shell_bcs_mod.f90
-    frldm_mod.f90-->main.f90
-    shell_bcs_mod.f90-->main.f90
-    constant_mod.f90-->ho_basis_mod.f90
-    ho_basis_mod.f90-->shell_bcs_mod.f90
-    constant_mod.f90-->potential_gh_mod.f90
-    potential_gh_mod.f90-->shell_bcs_mod.f90
-
+    micro_constant_mod.f90-->shell_bcs_mod.f90;
 ```
-                
+
+- FRLDM：constant_mod → nucleus_mod → grid_mod → frldm_mod（B_1, B_3 は calculate_potential_hockney）→ main
+- Shell+BCS：ho_basis_mod（三軸変形 HO 基底）と potential_gh_mod（求積点上の V1, ∇V1, VC）で一粒子準位を求め，shell_bcs_mod でシェル補正と BCS を計算する予定です．ho_basis_mod と potential_gh_mod は互いに use していません（test_potential_gh.f90 で組み合わせています）．shell_bcs_mod はまだ中身がなく，main からも呼ばれていません．
+- frldm_mod と main は `use CG_method_mod` が残っていますが，CG のルーチンはもう呼んでいません．
+
+### テストプログラム
+
+```mermaid
+graph TD;
+    grid_mod.f90-->test_grid.f90;
+    ho_basis_mod.f90-->test_ho_basis.f90;
+    ho_basis_mod.f90-->test_potential_gh.f90;
+    potential_gh_mod.f90-->test_potential_gh.f90;
+    calculate_potential_hockney.f90-->test_hockney.f90;
+    calculate_coulomb_FFT.f90-->test_coulomb_fft.f90;
+```
+
+### 旧方式（格子 + Lanczos / 虚時間）のファイル
+
+```mermaid
+graph TD;
+    grid_mod.f90-->micro_constant_mod.f90;
+    micro_constant_mod.f90-->Micro_potential_mod.f90;
+    fundamental/CG_method_mod.f90-->Micro_potential_mod.f90;
+    fundamental/3Dderivative_mod.f90-->Micro_potential_mod.f90;
+    Micro_potential_mod.f90-->EV_Lanczos.f90;
+    fundamental/common_func_mod.f90-->EV_Lanczos.f90;
+    micro_constant_mod.f90-->Imarginary_time_mod.f90;
+    fundamental/3Dderivative_cp_mod.f90-->Imarginary_time_mod.f90;
+    fundamental/calculate_vector_cp.f90-->Imarginary_time_mod.f90;
+    grid_mod.f90-->calculate_potential_mod.f90;
+```
+
+calculate_coulomb_FFT.f90（FALR 法）と fundamental/FFT_integral_mod.f90 はどこからも use されていません．
+
 ## 三軸変形調和振動子基底 (ho_basis_mod.f90)
 
 三軸変形核の一粒子準位を変形調和振動子基底の行列対角化で求めるモジュールです．ポテンシャル・∇V₁はGauss–Hermite求積点 `basis%point(axis,i)` 上で与えます．LAPACK (dstev, zheev) が必要です．
