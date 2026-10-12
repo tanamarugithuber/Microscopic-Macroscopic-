@@ -1,23 +1,28 @@
 module shell_bcs_mod
     !---------------------------
-    ! Microscopic corrections: Strutinsky shell correction + BCS pairing correction
+    ! Microscopic corrections: Strutinsky shell correction + pairing correction
+    ! (Lipkin-Nogami as in FRDM2012, or BCS)
     !   P. Moller et al., ADNDT 109-110 (2016) 1  (FRDM2012), Secs. 2.7-2.10
     !   P. Moller and J. R. Nix, Nucl. Phys. A 536 (1992) 20  (thesis/Nuclear_Pairing_Model.pdf)
     !
     ! 1. single-particle levels
-    !    V = V1 + V_so + V_C (Eqs. 80-92) for the (eps, gamma) ellipsoid of radius R_pot,
-    !    V1, grad V1, V_C on the Gauss-Hermite points by surface integrals (potential_gh_mod),
-    !    diagonalised in the deformed HO basis with hw0 = C_cur / A^(1/3) (ho_basis_mod).
+    !    V = V1 + V_so + V_C (Eqs. 80-92) for the shape (eps2, gamma, eps4, eps6) of radius
+    !    R_pot (shape_mod), V1 and V_C on the Gauss-Hermite points by surface integrals
+    !    (potential_gh_mod), spin-orbit term from V1 by integration by parts, diagonalised
+    !    in the deformed HO basis with hw0 = C_cur / A^(1/3) (ho_basis_mod).
     ! 2. Strutinsky shell correction (Eq. 78)
     !    E_shell = sum_{i <= N} e_i - E_smooth,
     !    smoothing function: Gaussian times the correction polynomial of order p (Hermite form)
     !      f(x) = exp(-x^2)/sqrt(pi) * sum_{m=0}^{p/2} c_m H_2m(x),  c_m = (-1)^m / (4^m m!)
     !    range gamma_S = C_S hw0 B_s (Eq. 111), smooth Fermi level from N_smooth(lambda) = N.
-    ! 3. BCS pairing correction (Eq. 79)
+    ! 3. pairing correction (Eq. 79)
     !    E_pair = E_pc - E_pc_average,
-    !    E_pc (Moller-Nix Eq. 5) from the BCS equations between levels N1 and N2,
+    !    E_pc from the Lipkin-Nogami (Eqs. 94-101) or BCS (Moller-Nix Eq. 5) equations
+    !    between levels N1 and N2,
     !    G from the effective-interaction gap Delta_G = r_mic B_s / N^(1/3) (Eqs. 102-107),
-    !    E_pc_average (Moller-Nix Eq. 27) for the same G, Delta_G and level density.
+    !    E_pc_average (Eq. 108, or Moller-Nix Eq. 27 for BCS) for the same G, Delta_G and
+    !    level density; for odd particle numbers it contains the average gap
+    !    r_mac B_s / N^(1/3) of the macroscopic energy (Eqs. 63, 64).
     !    Pairing window (Moller-Nix Sec. 2.5): N2 = last bound level or last level within
     !    5 MeV above the Fermi level, whichever is higher; the same number of levels below.
     !    Odd particle numbers: no blocking, quasi-particle energy of the odd level added.
@@ -30,9 +35,9 @@ module shell_bcs_mod
     use constant_mod, only: pi, e2
     use nucleus_mod, only: nucleus_property
     use ho_basis_mod, only: ho_basis_type, frequencies_from_eps_gamma, so_strength, diagonalize_hamiltonian
-    use potential_gh_mod, only: ellipsoid_shape, ellipsoid_from_eps_gamma, surface_quadrature, gauss_legendre
-    use micro_constant_mod, only: microscopic_variables, C_cur, V_s, V_a, mi_A_den, mi_B_den, a_pot, &
-                                  k_p, l_p, k_n, l_n, N_bas, mi_p, C_s, r_mic, a_2, mi_J, mi_L, mi_Q, mi_K
+    use potential_gh_mod, only: ellipsoid_shape, epsilon_shape, epsilon_shape_from, surface_quadrature, &
+                                gauss_legendre
+    use micro_constant_mod, only: microscopic_variables, a_pot, N_bas, mi_p, C_s, r_mic, mi_r_mac
     implicit none
     private
 
@@ -49,8 +54,9 @@ module shell_bcs_mod
         real(dp) :: e_shell = 0.0_dp        ! MeV, shell correction
         real(dp) :: delta_G = 0.0_dp        ! MeV, effective-interaction pairing gap
         real(dp) :: G = 0.0_dp              ! MeV, pairing strength
-        real(dp) :: delta = 0.0_dp          ! MeV, BCS pairing gap (0: no non-trivial solution)
-        real(dp) :: lambda = 0.0_dp         ! MeV, BCS Fermi level
+        real(dp) :: delta = 0.0_dp          ! MeV, pairing gap (0: no non-trivial solution)
+        real(dp) :: lambda = 0.0_dp         ! MeV, Fermi level of the pairing solution
+        real(dp) :: lambda2 = 0.0_dp        ! MeV, Lipkin-Nogami number-fluctuation constant
         integer :: N1 = 0, N2 = 0           ! pairing window (doubly degenerate levels)
         real(dp) :: e_pc = 0.0_dp           ! MeV, pairing correlation + quasi-particle energy
         real(dp) :: e_pc_ave = 0.0_dp       ! MeV, its average
@@ -60,7 +66,7 @@ module shell_bcs_mod
 
     type, public :: shell_bcs_result
         type(nucleon_correction) :: neutron, proton
-        real(dp) :: B_s = 1.0_dp            ! relative surface area of the (eps, gamma) shape
+        real(dp) :: B_s = 1.0_dp            ! relative surface area of the shape
         real(dp) :: gamma_S = 0.0_dp        ! MeV, Strutinsky range
         real(dp) :: e_shell = 0.0_dp        ! MeV, neutron + proton shell correction
         real(dp) :: e_pair = 0.0_dp         ! MeV, neutron + proton pairing correction
@@ -70,66 +76,54 @@ module shell_bcs_mod
     public :: shell_bcs_calculation
     public :: strutinsky_correction
     public :: bcs_correction
+    public :: ln_correction
     public :: ellipsoid_relative_area
 
     contains
 
-        subroutine shell_bcs_calculation(nucleus, mv, res, n_gh)
+        subroutine shell_bcs_calculation(nucleus, mv, res, n_gh, pairing)
             !---------------------------
-            ! shell + pairing correction of the nucleus at (nucleus%epsilon2, nucleus%gamma_deg).
-            ! mv receives the potential quantities (delta_ave, epsilon_ave, R_den, R_pot,
-            ! e_rho_c, hbar_omega0, lambda_p, lambda_n).
-            ! n_gh: Gauss-Hermite points per axis (default 30)
+            ! shell + pairing correction of the nucleus at the deformation
+            ! (nucleus%epsilon2, nucleus%gamma_deg, nucleus%epsilon4, nucleus%epsilon6).
+            ! mv receives the potential quantities (micro_constant_mod).
+            ! n_gh   : Gauss-Hermite points per axis (default 44)
+            ! pairing: 'LN' (Lipkin-Nogami, default, as FRDM2012) or 'BCS'
             !---------------------------
             implicit none
             type(nucleus_property), intent(in) :: nucleus
             type(microscopic_variables), intent(inout) :: mv
             type(shell_bcs_result), intent(out) :: res
             integer, intent(in), optional :: n_gh
+            character(*), intent(in), optional :: pairing
 
-            real(dp) :: Z, N, A, I, c1, eps, gam, Vp, Vn
+            real(dp) :: eps, gam
             integer :: ngh, ns
+            logical :: use_ln
             type(ho_basis_type) :: basis
-            type(ellipsoid_shape) :: shape
+            type(epsilon_shape) :: shape
             type(surface_quadrature) :: q
             real(dp), allocatable :: xg(:), yg(:), zg(:)
             real(dp), allocatable :: Y(:,:,:), dYx(:,:,:), dYy(:,:,:), dYz(:,:,:), C(:,:,:)
             real(dp), allocatable :: T(:,:), Vm(:,:), Axy(:,:), Ayz(:,:), Azx(:,:)
             complex(dp), allocatable :: H(:,:), U(:,:)
 
-            ngh = 30
+            ngh = 44
             if (present(n_gh)) ngh = n_gh
+            use_ln = .true.
+            if (present(pairing)) use_ln = (pairing /= 'BCS' .and. pairing /= 'bcs')
 
-            Z = real(nucleus%Z, dp)
-            N = real(nucleus%N, dp)
-            A = real(nucleus%A, dp)
             eps = nucleus%epsilon2
             gam = nucleus%gamma_deg * pi / 180.0_dp
 
-            !---------------------------
             ! potential quantities, Eqs. (82)-(87), (89), (90), (92), (93)
-            !---------------------------
-            I = (N - Z) / A
-            c1 = 3.0_dp * e2 / (5.0_dp * nucleus%R0)
-            mv%delta_ave = (I + 3.0_dp / 8.0_dp * c1 / mi_Q * Z**2 / A**(5.0_dp / 3.0_dp)) &
-                         / (1.0_dp + 9.0_dp / 4.0_dp * mi_J / mi_Q / A**(1.0_dp / 3.0_dp))
-            mv%epsilon_ave = (-2.0_dp * a_2 / A**(1.0_dp / 3.0_dp) + mi_L * mv%delta_ave**2 &
-                            + c1 * Z**2 / A**(4.0_dp / 3.0_dp)) / mi_K
-            mv%R_den = nucleus%R0 * A**(1.0_dp / 3.0_dp) * (1.0_dp + mv%epsilon_ave)
-            mv%R_pot = mv%R_den + mi_A_den - mi_B_den / mv%R_den
-            mv%e_rho_c = Z * e2 / (4.0_dp * pi * mv%R_pot**3 / 3.0_dp)
-            mv%hbar_omega0 = C_cur / A**(1.0_dp / 3.0_dp)
-            mv%lambda_p = k_p * A + l_p
-            mv%lambda_n = k_n * A + l_n
-            Vp = V_s + V_a * mv%delta_ave
-            Vn = V_s - V_a * mv%delta_ave
+            call mv%calculate_microscopic_variables(nucleus)
 
             !---------------------------
             ! basis, shape and potentials on the Gauss-Hermite points
             !---------------------------
             call basis%initialize(frequencies_from_eps_gamma(mv%hbar_omega0, eps, gam), nint(N_bas), ngh)
             ns = basis%n_states
-            shape = ellipsoid_from_eps_gamma(mv%R_pot, eps, gam)
+            shape = epsilon_shape_from(mv%R_pot, eps, gam, nucleus%epsilon4, nucleus%epsilon6)
             call q%initialize(shape, a_pot, 8, 16, 8)
             xg = basis%b(1) * basis%xi
             yg = basis%b(2) * basis%xi
@@ -145,20 +139,20 @@ module shell_bcs_mod
             allocate(res%neutron%e(2 * ns), res%proton%e(2 * ns))
             call basis%kinetic_matrix(T)
 
-            call basis%potential_matrix(-Vn * Y, Vm)
-            call basis%spin_orbit_matrices(-Vn * dYx, -Vn * dYy, -Vn * dYz, Axy, Ayz, Azx)
+            call basis%potential_matrix(-mv%V_n * Y, Vm)
+            call basis%spin_orbit_matrices_by_parts(-mv%V_n * Y, Axy, Ayz, Azx)
             call basis%build_hamiltonian(T, Vm, Axy, Ayz, Azx, so_strength(mv%lambda_n), H)
             call diagonalize_hamiltonian(H, res%neutron%e, U)
 
-            call basis%potential_matrix(-Vp * Y + mv%e_rho_c * C, Vm)
-            call basis%spin_orbit_matrices(-Vp * dYx, -Vp * dYy, -Vp * dYz, Axy, Ayz, Azx)
+            call basis%potential_matrix(-mv%V_p * Y + mv%e_rho_c * C, Vm)
+            call basis%spin_orbit_matrices_by_parts(-mv%V_p * Y, Axy, Ayz, Azx)
             call basis%build_hamiltonian(T, Vm, Axy, Ayz, Azx, so_strength(mv%lambda_p), H)
             call diagonalize_hamiltonian(H, res%proton%e, U)
 
             !---------------------------
-            ! Strutinsky and BCS
+            ! Strutinsky and pairing
             !---------------------------
-            res%B_s = ellipsoid_relative_area(ellipsoid_from_eps_gamma(1.0_dp, eps, gam))
+            res%B_s = shape%relative_area()
             res%gamma_S = C_s * mv%hbar_omega0 * res%B_s
             call correct_one(res%neutron, nucleus%N)
             call correct_one(res%proton, nucleus%Z)
@@ -171,12 +165,19 @@ module shell_bcs_mod
             subroutine correct_one(nc, n_part)
                 type(nucleon_correction), intent(inout) :: nc
                 integer, intent(in) :: n_part
+                real(dp) :: delta_odd
                 call strutinsky_correction(nc%e, n_part, res%gamma_S, nint(mi_p), &
                                            nc%e_sum, nc%e_smooth, nc%lambda_smooth, nc%g_smooth)
                 nc%e_shell = nc%e_sum - nc%e_smooth
                 nc%delta_G = r_mic * res%B_s / real(n_part, dp)**(1.0_dp / 3.0_dp)
-                call bcs_correction(nc%e, n_part, 0.5_dp * nc%g_smooth, nc%delta_G, &
-                                    nc%G, nc%delta, nc%lambda, nc%N1, nc%N2, nc%e_pc, nc%e_pc_ave)
+                delta_odd = mi_r_mac * res%B_s / real(n_part, dp)**(1.0_dp / 3.0_dp)
+                if (use_ln) then
+                    call ln_correction(nc%e, n_part, 0.5_dp * nc%g_smooth, nc%delta_G, nc%G, nc%delta, &
+                                       nc%lambda, nc%lambda2, nc%N1, nc%N2, nc%e_pc, nc%e_pc_ave, delta_odd)
+                else
+                    call bcs_correction(nc%e, n_part, 0.5_dp * nc%g_smooth, nc%delta_G, nc%G, nc%delta, &
+                                        nc%lambda, nc%N1, nc%N2, nc%e_pc, nc%e_pc_ave, delta_odd)
+                end if
                 nc%e_pair = nc%e_pc - nc%e_pc_ave
             end subroutine correct_one
 
@@ -328,46 +329,38 @@ module shell_bcs_mod
         end function smooth_energy
 
         !==========================================================================
-        ! BCS pairing correction
+        ! Pairing corrections: BCS and Lipkin-Nogami
         !==========================================================================
 
-        subroutine bcs_correction(e, n_part, rho, delta_G, G, delta, lambda, N1, N2, e_pc, e_pc_ave)
+        subroutine pairing_window(e, n_part, ek, N1, N2, nk, n_int)
             !---------------------------
-            ! e(:)    : single-particle energies, ascending, one nucleon each (Kramers pairs)
-            ! rho     : average density of doubly degenerate levels = g_smooth(lambda_smooth)/2
-            ! delta_G : effective-interaction pairing gap
-            ! out: G, BCS gap delta and Fermi level lambda, window N1..N2 (doubly degenerate
-            !      levels numbered from the bottom), e_pc (Moller-Nix Eq. 5), e_pc_ave (Eq. 27)
+            ! doubly degenerate levels ek(k) = mean of the Kramers pair (2k-1, 2k)
+            ! window (Moller-Nix Sec. 2.5): N2 = last bound level or last level within 5 MeV
+            ! above the Fermi level, whichever is higher; the same number of levels below.
+            ! nk: sharp occupation (2, 1, 0), n_int: nucleons in the window (Eq. 94)
             !---------------------------
             implicit none
-            real(dp), intent(in) :: e(:), rho, delta_G
+            real(dp), intent(in) :: e(:)
             integer, intent(in) :: n_part
-            real(dp), intent(out) :: G, delta, lambda, e_pc, e_pc_ave
+            real(dp), allocatable, intent(out) :: ek(:), nk(:)
             integer, intent(out) :: N1, N2
-            real(dp), allocatable :: ek(:), v2(:), nk(:)
-            real(dp) :: y1, y2, n_int, lo, hi, f_lo, Ei
-            integer :: nlev, kF, k, it
-            logical :: odd
+            real(dp), intent(out) :: n_int
+            integer :: nlev, kF, k
 
             nlev = size(e) / 2
             allocate(ek(nlev))
             do k = 1, nlev
                 ek(k) = 0.5_dp * (e(2 * k - 1) + e(2 * k))
             end do
-            odd = mod(n_part, 2) == 1
             kF = (n_part + 1) / 2          ! last (partly) occupied level
-
-            ! pairing window
             N2 = kF
             do k = kF, nlev
                 if (ek(k) < 0.0_dp .or. ek(k) <= ek(kF) + 5.0_dp) N2 = k
             end do
             N2 = max(N2, kF + 1)
             N1 = max(1, kF - (N2 - kF) + 1)
-            if (N2 > nlev) stop "bcs_correction: pairing window exceeds the basis"
-
-            ! sharp occupation (2, 1 or 0 nucleons per level)
-            allocate(nk(N1:N2), v2(N1:N2))
+            if (N2 > nlev) stop "pairing_window: pairing window exceeds the basis"
+            allocate(nk(N1:N2))
             do k = N1, N2
                 if (2 * k <= n_part) then
                     nk(k) = 2.0_dp
@@ -377,37 +370,42 @@ module shell_bcs_mod
                     nk(k) = 0.0_dp
                 end if
             end do
-            n_int = real(n_part - 2 * (N1 - 1), dp)   ! nucleons in the window, Eq. (94)
+            n_int = real(n_part - 2 * (N1 - 1), dp)
+        end subroutine pairing_window
 
-            !---------------------------
-            ! G from the average gap equation (Eq. 107)
-            !   1/G = rho/2 [asinh(y2/Delta_G) - asinh(y1/Delta_G)]
-            !---------------------------
+        subroutine pairing_strength(n_part, N1, N2, rho, delta_G, G, y1, y2)
+            ! G from the average gap equation (Eq. 107):
+            !   1/G = rho/2 [asinh(y2/Delta_G) - asinh(y1/Delta_G)],  y1, y2 from Eq. (106)
+            implicit none
+            integer, intent(in) :: n_part, N1, N2
+            real(dp), intent(in) :: rho, delta_G
+            real(dp), intent(out) :: G, y1, y2
             y1 = (-0.5_dp * n_part + N1 - 1) / rho
             y2 = (-0.5_dp * n_part + N2) / rho
             G = 2.0_dp / (rho * (asinh(y2 / delta_G) - asinh(y1 / delta_G)))
+        end subroutine pairing_strength
 
-            ! average pairing correlation + quasi-particle energy (Moller-Nix Eq. 27)
-            e_pc_ave = 0.5_dp * rho * ((y2 - G) * (y2 - sqrt(y2**2 + delta_G**2)) &
-                                     + (y1 - G) * (y1 + sqrt(y1**2 + delta_G**2))) &
-                     + 0.25_dp * G * rho * delta_G * (atan(y2 / delta_G) - atan(y1 / delta_G))
-            if (odd) e_pc_ave = e_pc_ave + delta_G
+        subroutine solve_gap(eps, n_int, G, delta, lambda)
+            !---------------------------
+            ! BCS gap and number equations (Eqs. 94-96) for the levels eps(:):
+            !   2/G = sum 1/sqrt((eps_k - lambda)^2 + delta^2),  2 sum v_k^2 = n_int
+            ! gap equation by bisection in delta, lambda(delta) from the number equation.
+            ! delta = 0 if there is no non-trivial solution.
+            !---------------------------
+            implicit none
+            real(dp), intent(in) :: eps(:), n_int, G
+            real(dp), intent(out) :: delta, lambda
+            real(dp) :: lo, hi
+            integer :: it
 
-            !---------------------------
-            ! BCS equations: gap equation solved by bisection in delta,
-            ! lambda(delta) from the particle number
-            !---------------------------
             lo = 1.0e-6_dp
             hi = 30.0_dp
-            f_lo = gap_function(lo)
-            if (f_lo >= 0.0_dp) then
-                ! no non-trivial solution: sharp distribution, no correlation energy
+            if (gap_function(lo) >= 0.0_dp) then
                 delta = 0.0_dp
-                lambda = 0.5_dp * (ek(kF) + ek(min(kF + 1, nlev)))
-                e_pc = 0.0_dp
+                lambda = fermi_level(1.0e-6_dp)
                 return
             end if
-            if (gap_function(hi) < 0.0_dp) stop "bcs_correction: gap not bracketed"
+            if (gap_function(hi) < 0.0_dp) stop "solve_gap: gap not bracketed"
             do it = 1, 200
                 delta = 0.5_dp * (lo + hi)
                 if (gap_function(delta) < 0.0_dp) then
@@ -419,15 +417,6 @@ module shell_bcs_mod
             end do
             delta = 0.5_dp * (lo + hi)
             lambda = fermi_level(delta)
-            v2 = 0.5_dp * (1.0_dp - (ek(N1:N2) - lambda) / sqrt((ek(N1:N2) - lambda)**2 + delta**2))
-
-            ! pairing correlation + quasi-particle energy (Moller-Nix Eq. 5)
-            e_pc = sum((2.0_dp * v2 - nk) * ek(N1:N2)) - delta**2 / G &
-                 - 0.5_dp * G * sum(2.0_dp * v2**2 - nk)
-            if (odd) then
-                Ei = sqrt((ek(kF) - lambda)**2 + delta**2)
-                e_pc = e_pc + Ei
-            end if
 
         contains
 
@@ -436,11 +425,11 @@ module shell_bcs_mod
                 real(dp), intent(in) :: d
                 real(dp) :: lam, a, b
                 integer :: j
-                a = ek(N1) - 50.0_dp
-                b = ek(N2) + 50.0_dp
+                a = minval(eps) - 50.0_dp
+                b = maxval(eps) + 50.0_dp
                 do j = 1, 200
                     lam = 0.5_dp * (a + b)
-                    if (sum(1.0_dp - (ek(N1:N2) - lam) / sqrt((ek(N1:N2) - lam)**2 + d * d)) < n_int) then
+                    if (sum(1.0_dp - (eps - lam) / sqrt((eps - lam)**2 + d * d)) < n_int) then
                         a = lam
                     else
                         b = lam
@@ -451,14 +440,202 @@ module shell_bcs_mod
             end function fermi_level
 
             function gap_function(d) result(f)
-                ! 2/G - sum 1/sqrt((e_k - lambda)^2 + d^2); increases with d, zero at the solution
+                ! 2/G - sum 1/sqrt((eps_k - lambda)^2 + d^2); increases with d, zero at the solution
                 real(dp), intent(in) :: d
                 real(dp) :: f, lam
                 lam = fermi_level(d)
-                f = 2.0_dp / G - sum(1.0_dp / sqrt((ek(N1:N2) - lam)**2 + d * d))
+                f = 2.0_dp / G - sum(1.0_dp / sqrt((eps - lam)**2 + d * d))
             end function gap_function
 
+        end subroutine solve_gap
+
+        subroutine bcs_correction(e, n_part, rho, delta_G, G, delta, lambda, N1, N2, e_pc, e_pc_ave, delta_odd)
+            !---------------------------
+            ! e(:)    : single-particle energies, ascending, one nucleon each (Kramers pairs)
+            ! rho     : average density of doubly degenerate levels = g_smooth(lambda_smooth)/2
+            ! delta_G : effective-interaction pairing gap
+            ! delta_odd (optional, default delta_G): average gap added to e_pc_ave for odd
+            !           particle numbers; must be the same term as in the macroscopic energy
+            ! out: G, BCS gap delta and Fermi level lambda, window N1..N2 (doubly degenerate
+            !      levels numbered from the bottom), e_pc (Moller-Nix Eq. 5), e_pc_ave (Eq. 27)
+            ! Odd particle numbers: no blocking, quasi-particle energy of the odd level added.
+            !---------------------------
+            implicit none
+            real(dp), intent(in) :: e(:), rho, delta_G
+            integer, intent(in) :: n_part
+            real(dp), intent(out) :: G, delta, lambda, e_pc, e_pc_ave
+            integer, intent(out) :: N1, N2
+            real(dp), intent(in), optional :: delta_odd
+            real(dp), allocatable :: ek(:), v2(:), nk(:)
+            real(dp) :: y1, y2, n_int
+            integer :: kF
+            logical :: odd
+
+            odd = mod(n_part, 2) == 1
+            kF = (n_part + 1) / 2
+            call pairing_window(e, n_part, ek, N1, N2, nk, n_int)
+            call pairing_strength(n_part, N1, N2, rho, delta_G, G, y1, y2)
+
+            ! average pairing correlation + quasi-particle energy (Moller-Nix Eq. 27)
+            e_pc_ave = 0.5_dp * rho * ((y2 - G) * (y2 - sqrt(y2**2 + delta_G**2)) &
+                                     + (y1 - G) * (y1 + sqrt(y1**2 + delta_G**2))) &
+                     + 0.25_dp * G * rho * delta_G * (atan(y2 / delta_G) - atan(y1 / delta_G))
+            if (odd) then
+                if (present(delta_odd)) then
+                    e_pc_ave = e_pc_ave + delta_odd
+                else
+                    e_pc_ave = e_pc_ave + delta_G
+                end if
+            end if
+
+            call solve_gap(ek(N1:N2), n_int, G, delta, lambda)
+            if (delta == 0.0_dp) then
+                ! no non-trivial solution: sharp distribution, no correlation energy
+                lambda = 0.5_dp * (ek(kF) + ek(min(kF + 1, size(ek))))
+                e_pc = 0.0_dp
+                return
+            end if
+            allocate(v2(N1:N2))
+            v2 = 0.5_dp * (1.0_dp - (ek(N1:N2) - lambda) / sqrt((ek(N1:N2) - lambda)**2 + delta**2))
+
+            ! pairing correlation + quasi-particle energy (Moller-Nix Eq. 5)
+            e_pc = sum((2.0_dp * v2 - nk) * ek(N1:N2)) - delta**2 / G &
+                 - 0.5_dp * G * sum(2.0_dp * v2**2 - nk)
+            if (odd) e_pc = e_pc + sqrt((ek(kF) - lambda)**2 + delta**2)
         end subroutine bcs_correction
+
+        subroutine ln_correction(e, n_part, rho, delta_G, G, delta, lambda, lambda2, N1, N2, &
+                                 e_pc, e_pc_ave, delta_odd)
+            !---------------------------
+            ! Lipkin-Nogami pairing correction (FRDM2012 Eqs. 94-101, 107-110), the pairing
+            ! model of FRDM2012. Arguments as in bcs_correction, plus
+            !   lambda2 : number-fluctuation constant (Eq. 98)
+            ! The coupled equations are solved as one equation for lambda2 (see below); the
+            ! BCS equations for the shifted levels eps_k = e_k + (4 lambda2 - G) v_k^2 (Eq. 97)
+            ! are solved inside. Unlike BCS, the solution never collapses (magic numbers).
+            ! E_pc  : Eq. (101); odd particle numbers: no blocking, E_i of Eq. (100) added.
+            ! <E_pc>: Eq. (108) with lambda2 from Eqs. (109), (110):
+            !   lambda2_ave = G/4 (A - C)/(B - C)
+            !   A = (rho Delta_G/4)^2 [(2/(G rho))^2 - (ln((y2^2+Delta_G^2)/(y1^2+Delta_G^2))/2)^2]
+            !     = (sum u^3 v)(sum u v^3)
+            !   B = (rho Delta_G/4)^2 [atan(y2/Delta_G) - atan(y1/Delta_G)]^2 = (sum u^2 v^2)^2
+            !   C = rho Delta_G/32 [Delta_G (y2/(y2^2+Delta_G^2) - y1/(y1^2+Delta_G^2))
+            !       + atan(y2/Delta_G) - atan(y1/Delta_G)] = sum u^4 v^4
+            !---------------------------
+            implicit none
+            real(dp), intent(in) :: e(:), rho, delta_G
+            integer, intent(in) :: n_part
+            real(dp), intent(out) :: G, delta, lambda, lambda2, e_pc, e_pc_ave
+            integer, intent(out) :: N1, N2
+            real(dp), intent(in), optional :: delta_odd
+            real(dp), allocatable :: ek(:), nk(:), eps(:), v2(:), u2(:)
+            real(dp) :: y1, y2, n_int, d, at, aa, bb, cc, l2_ave, lo, hi, f_ln
+            integer :: kF, it
+            logical :: odd
+
+            odd = mod(n_part, 2) == 1
+            kF = (n_part + 1) / 2
+            call pairing_window(e, n_part, ek, N1, N2, nk, n_int)
+            call pairing_strength(n_part, N1, N2, rho, delta_G, G, y1, y2)
+
+            ! average quantities, Eqs. (108)-(110)
+            d = delta_G
+            at = atan(y2 / d) - atan(y1 / d)
+            aa = (rho * d / 4.0_dp)**2 * ((2.0_dp / (G * rho))**2 &
+                 - (0.5_dp * log((y2**2 + d**2) / (y1**2 + d**2)))**2)
+            bb = (rho * d / 4.0_dp)**2 * at**2
+            cc = rho * d / 32.0_dp * (d * (y2 / (y2**2 + d**2) - y1 / (y1**2 + d**2)) + at)
+            l2_ave = 0.25_dp * G * (aa - cc) / (bb - cc)
+            e_pc_ave = 0.5_dp * rho * ((y2 - G) * (y2 - sqrt(y2**2 + d**2)) &
+                                     + (y1 - G) * (y1 + sqrt(y1**2 + d**2))) &
+                     + 0.25_dp * (G - 4.0_dp * l2_ave) * rho * d * at
+            if (odd) then
+                if (present(delta_odd)) then
+                    e_pc_ave = e_pc_ave + delta_odd
+                else
+                    e_pc_ave = e_pc_ave + delta_G
+                end if
+            end if
+
+            ! microscopic Lipkin-Nogami equations: F(lambda2) = lambda2(Eq. 98) - lambda2 = 0
+            ! by bisection. For given lambda2 the BCS equations with the shifted levels are
+            ! solved self-consistently in v_k^2 (inner_solution). As delta -> 0 the lambda2 of
+            ! Eq. (98) diverges, so F > 0 for small lambda2 (collapsed: F = +inf) and F < 0 for
+            ! large lambda2; the solution always has delta > 0.
+            allocate(eps(N1:N2), v2(N1:N2), u2(N1:N2))
+            v2 = 0.5_dp * nk
+            lo = 0.0_dp
+            hi = max(l2_ave, G)
+            do it = 1, 60
+                if (ln_function(hi) < 0.0_dp) exit
+                lo = hi
+                hi = 2.0_dp * hi
+            end do
+            if (it > 60) stop "ln_correction: lambda2 not bracketed"
+            do it = 1, 100
+                lambda2 = 0.5_dp * (lo + hi)
+                if (ln_function(lambda2) > 0.0_dp) then
+                    lo = lambda2
+                else
+                    hi = lambda2
+                end if
+                if (hi - lo < 1.0e-10_dp) exit
+            end do
+            lambda2 = 0.5_dp * (lo + hi)
+            f_ln = ln_function(lambda2)
+            eps = ek(N1:N2) + (4.0_dp * lambda2 - G) * v2
+
+            if (delta == 0.0_dp) then
+                lambda2 = 0.0_dp
+                e_pc = 0.0_dp
+                return
+            end if
+            u2 = 1.0_dp - v2
+            ! Eq. (101)
+            e_pc = sum((2.0_dp * v2 - nk) * ek(N1:N2)) - delta**2 / G &
+                 - 0.5_dp * G * sum(2.0_dp * v2**2 - nk) - 4.0_dp * lambda2 * sum(u2 * v2)
+            if (odd) e_pc = e_pc + sqrt((eps(kF) - lambda)**2 + delta**2) + lambda2
+
+        contains
+
+            function ln_function(l2) result(f)
+                ! lambda2 of Eq. (98) minus l2, for the self-consistent solution at l2
+                real(dp), intent(in) :: l2
+                real(dp) :: f, s22, s44
+                call inner_solution(l2)
+                if (delta == 0.0_dp) then
+                    f = huge(1.0_dp)
+                    return
+                end if
+                u2 = 1.0_dp - v2
+                s22 = sum(u2 * v2)
+                s44 = sum(u2**2 * v2**2)
+                ! (sum u^3 v)(sum u v^3) = (sum u v u^2)(sum u v v^2)
+                f = 0.25_dp * G * (sum(sqrt(u2 * v2) * u2) * sum(sqrt(u2 * v2) * v2) - s44) &
+                    / (s22**2 - s44) - l2
+            end function ln_function
+
+            subroutine inner_solution(l2)
+                ! BCS equations for eps_k = e_k + (4 l2 - G) v_k^2, iterated in v_k^2
+                ! (starts from the v_k^2 of the previous call)
+                real(dp), intent(in) :: l2
+                real(dp) :: v2_new(size(v2))
+                integer :: j
+                do j = 1, 500
+                    eps = ek(N1:N2) + (4.0_dp * l2 - G) * v2
+                    call solve_gap(eps, n_int, G, delta, lambda)
+                    if (delta == 0.0_dp) then
+                        v2_new = 0.5_dp * nk
+                    else
+                        v2_new = 0.5_dp * (1.0_dp - (eps - lambda) / sqrt((eps - lambda)**2 + delta**2))
+                    end if
+                    if (maxval(abs(v2_new - v2)) < 1.0e-11_dp) exit
+                    v2 = 0.5_dp * (v2 + v2_new)
+                end do
+                v2 = v2_new
+            end subroutine inner_solution
+
+        end subroutine ln_correction
 
         !==========================================================================
         ! relative surface area of an ellipsoid

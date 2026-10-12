@@ -5,6 +5,7 @@ program test_ho_basis
     !   2. triaxial T + V_HO must reproduce the analytic oscillator energies
     !   3. spherical Woods-Saxon + spin-orbit must show the (2j+1) degeneracies
     !      1s1/2(2), 1p3/2(4), 1p1/2(2), 1d5/2(6)
+    !   4. spin-orbit matrices from V by integration by parts agree with those from grad V
     !
     ! build:
     !   gfortran -O2 -fopenmp constant_mod.f90 ho_basis_mod.f90 test_ho_basis.f90 -llapack -o test_ho_basis.exe
@@ -132,6 +133,24 @@ program test_ho_basis
         print *, "FAIL: degeneracies ", group_size(1:4), " expected ", expected
         ok_all = .false.
     end if
+
+    ! 4. by parts: A_jk = - int V (d_j phi_a d_k phi_b - d_k phi_a d_j phi_b)
+    block
+        real(dp), allocatable :: Bxy(:,:), Byz(:,:), Bzx(:,:)
+        real(dp) :: err
+        allocate(Bxy(ns, ns), Byz(ns, ns), Bzx(ns, ns))
+        call basis%spin_orbit_matrices_by_parts(V, Bxy, Byz, Bzx)
+        err = max(maxval(abs(Bxy - Axy)), maxval(abs(Byz - Ayz)), maxval(abs(Bzx - Azx))) &
+            / max(maxval(abs(Axy)), maxval(abs(Ayz)), maxval(abs(Azx)))
+        ! both are Gauss-Hermite approximations of the same integral (they differ by the
+        ! quadrature error, ~5e-5 here); a sign or index error would give O(1)
+        if (err < 1.0e-3_dp) then
+            print '(a, es10.2)', " PASS: spin-orbit by parts vs grad V, relative difference ", err
+        else
+            print '(a, es10.2)', " FAIL: spin-orbit by parts vs grad V, relative difference ", err
+            ok_all = .false.
+        end if
+    end block
 
     if (ok_all) then
         print *, "ALL TESTS PASSED"

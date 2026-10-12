@@ -3,6 +3,7 @@ module grid_mod
     use iso_fortran_env, only: real64
     use constant_mod, only: pi
     use nucleus_mod, only: nucleus_property
+    use shape_mod, only: epsilon_shape, epsilon_shape_from
 
     implicit none
     private
@@ -21,9 +22,12 @@ module grid_mod
                                   ! .false.: box extent chosen separately for each axis
 
         !---------------------------
-        ! Nuclear shape: triaxial ellipsoid determined by (epsilon, gamma)
+        ! Nuclear shape: epsilon parameterization (eps2, gamma, eps4, eps6) of shape_mod
         !---------------------------
-        real(dp) :: semi(3) ! fm, semi-axes along x, y, z
+        type(epsilon_shape) :: shape
+        real(dp) :: semi(3) ! fm, largest extent of the shape along x, y, z (semi-axes for an ellipsoid)
+        integer :: n_sub = 6 ! cells cut by the surface get the fraction of n_sub**3 sub-points inside
+                             ! (1: only the cell centre is tested, density 0 or 1)
         integer :: n_points ! total number of grid points
         integer :: n_x_points
         integer :: n_y_points
@@ -71,6 +75,7 @@ module grid_mod
             procedure :: inside_outside_nucleus
             procedure :: inside_outside_nucleus3D
             procedure :: deformation_parameterization
+            procedure :: cell_fraction
     end type grid_type
 
 
@@ -103,10 +108,10 @@ module grid_mod
 
         subroutine initialize_grid(this, nucleus)
             !---------------------------
-            ! The box is determined from the deformation (nucleus%epsilon2, nucleus%gamma_deg):
-            !   semi-axes R_x, R_y, R_z of the ellipsoid  ->  nu_i = ceiling(R_i / h_i)
+            ! The box is determined from the deformation (nucleus%epsilon2, gamma_deg, epsilon4, epsilon6):
+            !   largest extents R_x, R_y, R_z of the shape  ->  nu_i = ceiling(R_i / h_i)
             !   box  = n_times * nucleus size
-            ! cubic = .true. uses the longest semi-axis on all three axes.
+            ! cubic = .true. uses the longest extent on all three axes.
             !---------------------------
             implicit none
             class(grid_type), intent(inout) :: this
@@ -114,7 +119,9 @@ module grid_mod
             integer :: nu(3)
 
             print *, "Initializing grid based on the nucleus properties..."
-            this%semi = semi_axes_from_eps_gamma(nucleus%R_a, nucleus%epsilon2, nucleus%gamma_deg * pi / 180.0_dp)
+            this%shape = epsilon_shape_from(nucleus%R_a, nucleus%epsilon2, nucleus%gamma_deg * pi / 180.0_dp, &
+                                            nucleus%epsilon4, nucleus%epsilon6)
+            this%semi = this%shape%extent()
 
             ! Calculate grid boundaries based on the nucleus size
             if (this%cubic) then
@@ -146,8 +153,9 @@ module grid_mod
             this%n_y_points = this%n_y_max - this%n_y_min + 1
             this%n_z_points = this%n_z_max - this%n_z_min + 1
 
-            print *, "epsilon, gamma [deg]: ", nucleus%epsilon2, nucleus%gamma_deg
-            print *, "semi-axes (x, y, z) [fm]: ", this%semi
+            print *, "eps2, gamma [deg], eps4, eps6: ", nucleus%epsilon2, nucleus%gamma_deg, nucleus%epsilon4, &
+                     nucleus%epsilon6
+            print *, "extent (x, y, z) [fm]: ", this%semi
             print *, "Grid boundaries calculated:"
             print *, "n_x_min: ", this%n_x_min, " n_x_max: ", this%n_x_max
             print *, "n_y_min: ", this%n_y_min, " n_y_max: ", this%n_y_max
@@ -178,15 +186,12 @@ module grid_mod
                         x = (this%n_x_min + i - 1) * this%h_x
                         l = (k-1)*this%n_x_points*this%n_y_points + (j-1)*this%n_x_points + i
                         ! r(l) = sqrt(x**2 + y**2 + z**2)
-                        if ((x/this%semi(1))**2 + (y/this%semi(2))**2 + (z/this%semi(3))**2 <= 1.0_dp) then
-                            index(l) = 1.0_dp ! inside the nucleus
-                        else
-                            index(l) = 0.0_dp ! outside the nucleus
-                        end if
+                        index(l) = this%cell_fraction(x, y, z)
                     end do
                 end do
             end do
-            print *, "Number of grid points inside the nucleus: ", count(index == 1.0_dp)
+            print *, "Number of grid points inside the nucleus: ", count(index == 1.0_dp), &
+                     "  cut by the surface: ", count(index > 0.0_dp .and. index < 1.0_dp)
             print *, "Number of grid points:", this%n_points
             print *, "Grid points classified as inside or outside the nucleus."
 
@@ -210,19 +215,53 @@ module grid_mod
                         x = (this%n_x_min + i - 1) * this%h_x
                         ! l = (k-1)*this%n_x_points*this%n_y_points + (j-1)*this%n_x_points + i
                         ! r(l) = sqrt(x**2 + y**2 + z**2)
-                        if ((x/this%semi(1))**2 + (y/this%semi(2))**2 + (z/this%semi(3))**2 <= 1.0_dp) then
-                            index(i,j,k) = 1.0_dp ! inside the nucleus
-                        else
-                            index(i,j,k) = 0.0_dp ! outside the nucleus
-                        end if
+                        index(i,j,k) = this%cell_fraction(x, y, z)
                     end do
                 end do
             end do
-            print *, "Number of grid points inside the nucleus: ", count(index == 1.0_dp)
+            print *, "Number of grid points inside the nucleus: ", count(index == 1.0_dp), &
+                     "  cut by the surface: ", count(index > 0.0_dp .and. index < 1.0_dp)
             print *, "Number of grid points:", this%n_points
             print *, "Grid points classified as inside or outside the nucleus."
 
         end subroutine inside_outside_nucleus3D
+
+        pure function cell_fraction(this, x, y, z) result(frac)
+            !---------------------------
+            ! fraction of the cell centred at (x, y, z) inside the nucleus:
+            ! 1 or 0 if the centre and the 8 corners agree, otherwise the fraction of
+            ! n_sub**3 sub-points inside. sum(index) * dV then reproduces the volume closely.
+            !---------------------------
+            implicit none
+            class(grid_type), intent(in) :: this
+            real(dp), intent(in) :: x, y, z
+            real(dp) :: frac, h(3), p(3)
+            integer :: a, b, c, n_in
+
+            h = [this%h_x, this%h_y, this%h_z]
+            n_in = merge(1, 0, this%shape%inside([x, y, z]))
+            do c = -1, 1, 2
+                do b = -1, 1, 2
+                    do a = -1, 1, 2
+                        n_in = n_in + merge(1, 0, this%shape%inside([x, y, z] + 0.5_dp * h * [a, b, c]))
+                    end do
+                end do
+            end do
+            if (this%n_sub <= 1 .or. n_in == 0 .or. n_in == 9) then
+                frac = merge(1.0_dp, 0.0_dp, this%shape%inside([x, y, z]))
+                return
+            end if
+            n_in = 0
+            do c = 1, this%n_sub
+                do b = 1, this%n_sub
+                    do a = 1, this%n_sub
+                        p = [x, y, z] + h * ([a, b, c] - 0.5_dp * (this%n_sub + 1)) / this%n_sub
+                        if (this%shape%inside(p)) n_in = n_in + 1
+                    end do
+                end do
+            end do
+            frac = real(n_in, dp) / real(this%n_sub, dp)**3
+        end function cell_fraction
 
         subroutine deformation_parameterization(this, nucleus, beta2, beta4)
             implicit none

@@ -64,6 +64,7 @@ module ho_basis_mod
             procedure :: kinetic_matrix
             procedure :: potential_matrix
             procedure :: spin_orbit_matrices
+            procedure :: spin_orbit_matrices_by_parts
             procedure :: build_hamiltonian
     end type ho_basis_type
 
@@ -409,6 +410,43 @@ module ho_basis_mod
             Azx = 0.5_dp * (Azx - transpose(Azx))
             deallocate(U, Dx, Dy, Dz, M)
         end subroutine spin_orbit_matrices
+
+        subroutine spin_orbit_matrices_by_parts(this, V, Axy, Ayz, Azx)
+            !---------------------------
+            ! Same A_jk as spin_orbit_matrices, from V1 itself instead of grad V1.
+            ! Integrating <a|(d_j V) d_k|b> - <a|(d_k V) d_j|b> by parts (the d_j d_k phi_b
+            ! terms cancel):
+            !   A_jk(a,b) = - int V (d_j phi_a d_k phi_b - d_k phi_a d_j phi_b) d^3r
+            ! V1 is continuous where grad V1 has a kink at the surface, so the Gauss-Hermite
+            ! quadrature is much more accurate: the spherical (2j+1) degeneracies are kept to
+            ! ~1e-4 MeV instead of ~4e-2 MeV.
+            ! V: V1 (with its strength, MeV) on the quadrature points
+            !---------------------------
+            implicit none
+            class(ho_basis_type), intent(in) :: this
+            real(dp), intent(in) :: V(:,:,:)
+            real(dp), intent(out) :: Axy(this%n_states, this%n_states)
+            real(dp), intent(out) :: Ayz(this%n_states, this%n_states)
+            real(dp), intent(out) :: Azx(this%n_states, this%n_states)
+            real(dp), allocatable :: U(:,:), Dx(:,:), Dy(:,:), Dz(:,:)
+            integer :: nm
+
+            nm = this%n_ax_max
+            allocate(U(0:nm, this%n_gh), Dx(0:nm, this%n_gh), Dy(0:nm, this%n_gh), Dz(0:nm, this%n_gh))
+            U = this%u(0:nm, :)
+            Dx = this%du(0:nm, :) / this%b(1)
+            Dy = this%du(0:nm, :) / this%b(2)
+            Dz = this%du(0:nm, :) / this%b(3)
+
+            ! M(a,b) = int V d_j phi_a d_k phi_b, A_jk = -(M - M^T)
+            call quad_matrix(this, Dx, U, U, Dy, U, U, V, Axy)
+            Axy = -(Axy - transpose(Axy))
+            call quad_matrix(this, U, U, Dy, U, U, Dz, V, Ayz)
+            Ayz = -(Ayz - transpose(Ayz))
+            call quad_matrix(this, U, Dx, U, U, Dz, U, V, Azx)
+            Azx = -(Azx - transpose(Azx))
+            deallocate(U, Dx, Dy, Dz)
+        end subroutine spin_orbit_matrices_by_parts
 
         pure function so_strength(lambda) result(kappa)
             ! kappa = lambda * (hbar/(2 m c))^2  [fm^2]

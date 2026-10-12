@@ -1,54 +1,181 @@
 program main
+    !---------------------------
+    ! FRLDM + Shell + pairing (FRDM2012 macroscopic-microscopic model, finite-range
+    ! liquid-drop macroscopic part) for one nucleus.
+    !
+    !   M_th = E_mac(Z, N, shape) + E_shell + E_pair
+    !     E_mac           : FRLDM, Eq. (62), as a mass excess (frldm_mod)
+    !     E_shell, E_pair : Strutinsky shell correction and Lipkin-Nogami (or BCS) pairing
+    !                       correction (shell_bcs_mod)
+    !   binding energy B = Z M_H + N M_n - M_th
+    !
+    ! The shape is the FRDM epsilon parametrisation (eps2, gamma, eps4, eps6), Eqs. (17)-(25).
+    ! With search = .true. the potential energy E_mac + E_shell + E_pair is minimised on a
+    ! grid in (eps2, eps4) (axial, eps6 = 0 unless given), and the minimum is reported.
+    ! The zero-point energy (FRDM2012 Sec. 2.11) is not included.
+    !
+    ! Input: namelist &frldm_input in the file given as the first argument (default
+    ! input.nml); without the file the defaults below (208Pb, spherical) are used.
+    !   Z, N                 : proton and neutron numbers
+    !   eps2, gamma_deg, eps4, eps6 : deformation (gamma in degree)
+    !   pairing              : 'LN' (default) or 'BCS'
+    !   n_gh                 : Gauss-Hermite points per axis of the single-particle problem
+    !   use_grid, h, n_times : B_1, B_3 from the grid + Hockney method instead of the surface
+    !                          integrals (cross-check; grid spacing h fm, box n_times x nucleus)
+    !   search               : ground-state search on the (eps2, eps4) grid
+    !   eps2_min, eps2_max, d_eps2, eps4_min, eps4_max, d_eps4 : search grid
+    !---------------------------
     !$ use omp_lib
     use iso_fortran_env, only: real64
-    use constant_mod
-    use nucleus_mod
-    use grid_mod
-    use frldm_mod
+    use constant_mod, only: pi
+    use nucleus_mod, only: nucleus_property
+    use grid_mod, only: grid_type
+    use shape_mod, only: epsilon_shape, epsilon_shape_from
+    use frldm_mod, only: frldm_variables, M_H, M_n
+    use micro_constant_mod, only: microscopic_variables
+    use shell_bcs_mod, only: shell_bcs_result, shell_bcs_calculation, nucleon_correction
 
     implicit none
     integer, parameter :: dp = real64
-    type(nucleus_property) :: nucleus
-    type(grid_type) :: g_mod
+
+    integer :: Z = 82, N = 126, n_gh = 44, n_times = 3
+    real(dp) :: eps2 = 0.0_dp, gamma_deg = 0.0_dp, eps4 = 0.0_dp, eps6 = 0.0_dp, h = 0.5_dp
+    character(8) :: pairing = 'LN'
+    logical :: use_grid = .false., search = .false.
+    real(dp) :: eps2_min = 0.0_dp, eps2_max = 0.30_dp, d_eps2 = 0.05_dp
+    real(dp) :: eps4_min = -0.08_dp, eps4_max = 0.08_dp, d_eps4 = 0.04_dp
+    namelist /frldm_input/ Z, N, eps2, gamma_deg, eps4, eps6, pairing, n_gh, use_grid, h, n_times, &
+                           search, eps2_min, eps2_max, d_eps2, eps4_min, eps4_max, d_eps4
+
+    character(256) :: file_name
+    logical :: exists
+    integer :: unit, ios, i2, i4, n2, n4
+    real(dp) :: e_pot, e_best, best(2)
     type(frldm_variables) :: frldm
-    
+    type(microscopic_variables) :: mv
+    type(shell_bcs_result) :: res
 
+    file_name = 'input.nml'
+    if (command_argument_count() >= 1) call get_command_argument(1, file_name)
+    inquire(file=trim(file_name), exist=exists)
+    if (exists) then
+        open(newunit=unit, file=trim(file_name), status='old', action='read')
+        read(unit, nml=frldm_input, iostat=ios)
+        close(unit)
+        if (ios /= 0) stop "main: error reading namelist &frldm_input"
+        print '(a, a)', " input: ", trim(file_name)
+    else
+        print '(a, a, a)', " input: ", trim(file_name), " not found, defaults used"
+    end if
 
-    ! real(dp), allocatable :: A(:,:), b(:), x(:)
-    ! Allocate(A(2,2), b(2), x(2))
-    ! A(1,1) = 4.0_dp
-    ! A(1,2) = 1.0_dp
-    ! A(2,1) = 1.0_dp
-    ! A(2,2) = 3.0_dp
-    ! b(1) = 1.0_dp
-    ! b(2) = 2.0_dp
-    ! call CG_method(A, b, x)
-    ! print *, "Solution x: ", x
+    if (search) then
+        n2 = nint((eps2_max - eps2_min) / d_eps2)
+        n4 = nint((eps4_max - eps4_min) / d_eps4)
+        print '(a)', " ground-state search: E_pot = E_mac + E_shell + E_pair [MeV]"
+        print '(a)', "     eps2     eps4        E_mac     E_s+p      E_pot"
+        e_best = huge(1.0_dp)
+        do i2 = 0, n2
+            do i4 = 0, n4
+                call calculate(eps2_min + i2 * d_eps2, gamma_deg, eps4_min + i4 * d_eps4, eps6, .false., e_pot)
+                print '(2f9.3, 3f11.4)', eps2_min + i2 * d_eps2, eps4_min + i4 * d_eps4, frldm%E_frldm, &
+                      res%e_micro, e_pot
+                if (e_pot < e_best) then
+                    e_best = e_pot
+                    best = [eps2_min + i2 * d_eps2, eps4_min + i4 * d_eps4]
+                end if
+            end do
+        end do
+        print '(a, 2f8.3)', " minimum on the grid at eps2, eps4 = ", best
+        eps2 = best(1)
+        eps4 = best(2)
+    end if
 
-    ! Initialize nucleus properties
-    nucleus%N = 8
-    nucleus%Z = 8
-    nucleus%semi1 = nucleus%R0*(nucleus%Z + nucleus%N)**(1.0_dp/3.0_dp)
-    nucleus%epsilon2 = 0.0_dp   ! deformation epsilon; the grid is built from (epsilon2, gamma_deg)
-    nucleus%gamma_deg = 0.0_dp  ! triaxiality gamma in degree
-    call nucleus%calculate_fundamental_properties()
+    call calculate(eps2, gamma_deg, eps4, eps6, .true., e_pot)
 
-    ! Initialize grid
-    g_mod%h_x = 0.5_dp
-    g_mod%h_y = 0.5_dp
-    g_mod%h_z = 0.5_dp
-    g_mod%n_times = 3
-    call g_mod%initialize_grid(nucleus)
-    ! allocate(g_mod%density_index(g_mod%n_points))
-    allocate(g_mod%density_index3D(g_mod%n_x_points, g_mod%n_y_points, g_mod%n_z_points))
-    ! allocate(g_mod%r(g_mod%n_points))
-    ! call g_mod%inside_outside_nucleus(nucleus, g_mod%density_index)
-    call g_mod%inside_outside_nucleus3D(nucleus, g_mod%density_index3D)
+contains
 
-    ! Calculate FRLDM variables
-    
-    call frldm%calculate_frldm_energy(nucleus, g_mod, frldm%E_frldm)
+    subroutine calculate(e2_, gam_, e4_, e6_, verbose, e_pot)
+        ! FRLDM + shell + pairing at one deformation; e_pot = M_th (mass excess, MeV)
+        real(dp), intent(in) :: e2_, gam_, e4_, e6_
+        logical, intent(in) :: verbose
+        real(dp), intent(out) :: e_pot
+        type(nucleus_property) :: nucleus
+        type(grid_type) :: g_mod
+        type(epsilon_shape) :: shape
+        real(dp) :: M_th, B
+        integer :: t0, t1, rate
 
-    print *, "FRLDM Energy: ", frldm%E_frldm
+        call system_clock(t0, rate)
+        nucleus%Z = Z
+        nucleus%N = N
+        nucleus%semi1 = nucleus%R0 * (Z + N)**(1.0_dp / 3.0_dp)
+        nucleus%epsilon2 = e2_
+        nucleus%gamma_deg = gam_
+        nucleus%epsilon4 = e4_
+        nucleus%epsilon6 = e6_
+        call nucleus%calculate_fundamental_properties()
+        shape = epsilon_shape_from(nucleus%R_a, e2_, gam_ * pi / 180.0_dp, e4_, e6_)
+
+        ! macroscopic part
+        frldm%verbose = .false.
+        if (use_grid) then
+            g_mod%h_x = h
+            g_mod%h_y = h
+            g_mod%h_z = h
+            g_mod%n_times = n_times
+            call g_mod%initialize_grid(nucleus)
+            allocate(g_mod%density_index3D(g_mod%n_x_points, g_mod%n_y_points, g_mod%n_z_points))
+            call g_mod%inside_outside_nucleus3D(nucleus, g_mod%density_index3D)
+            call frldm%calculate_frldm_energy(nucleus, shape, frldm%E_frldm, g_mod)
+        else
+            call frldm%calculate_frldm_energy(nucleus, shape, frldm%E_frldm)
+        end if
+
+        ! microscopic part
+        call shell_bcs_calculation(nucleus, mv, res, n_gh, trim(pairing))
+
+        M_th = frldm%E_frldm + res%e_micro
+        B = M_H * Z + M_n * N - M_th
+        e_pot = M_th
+        call system_clock(t1)
+        if (.not. verbose) return
+
+        print *
+        print '(a, i4, a, i4, a, i4)', " ===== Z = ", Z, "  N = ", N, "  A = ", Z + N
+        print '(a, 4f9.4)', " eps2, gamma [deg], eps4, eps6        : ", e2_, gam_, e4_, e6_
+        print '(a, 3f10.6)', " B_s, B_1, B_3                        : ", frldm%B_s, frldm%B_1, frldm%B_3
+        print '(a, 2f10.4)', " R_pot [fm], Strutinsky range [MeV]   : ", mv%R_pot, res%gamma_S
+        print '(a)', " --- macroscopic energy (FRLDM, Eq. 62) [MeV]"
+        print '(a, f12.4)', "   M_H Z + M_n N         : ", frldm%E_mass
+        print '(a, f12.4)', "   volume                : ", frldm%E_v
+        print '(a, f12.4)', "   surface               : ", frldm%E_s
+        print '(a, f12.4)', "   a0                    : ", frldm%E_a0
+        print '(a, f12.4)', "   Coulomb               : ", frldm%E_c
+        print '(a, f12.4)', "   Coulomb exchange      : ", frldm%E_cex
+        print '(a, f12.4)', "   proton form factor    : ", frldm%E_pff
+        print '(a, f12.4)', "   charge asymmetry      : ", frldm%E_ca
+        print '(a, f12.4)', "   Wigner                : ", frldm%E_W
+        print '(a, f12.4)', "   average pairing       : ", frldm%E_pair
+        print '(a, f12.4)', "   electron binding      : ", frldm%E_el
+        print '(a, f12.4)', "   E_mac                 : ", frldm%E_frldm
+        print '(a, a, a)', " --- microscopic corrections (Strutinsky + ", trim(pairing), ") [MeV]"
+        call report("neutrons", res%neutron)
+        call report("protons ", res%proton)
+        print '(a, f12.4)', "   E_shell               : ", res%e_shell
+        print '(a, f12.4)', "   E_pair                : ", res%e_pair
+        print '(a, f12.4)', "   E_s+p                 : ", res%e_micro
+        print '(a)', " --- result [MeV]"
+        print '(a, f12.4)', "   mass excess M_th      : ", M_th
+        print '(a, f12.4)', "   binding energy B      : ", B
+        print '(a, f12.4)', "   B / A                 : ", B / (Z + N)
+        print '(a, f8.2, a)', "   time: ", real(t1 - t0, dp) / rate, " s"
+    end subroutine calculate
+
+    subroutine report(name, nc)
+        character(*), intent(in) :: name
+        type(nucleon_correction), intent(in) :: nc
+        print '(3x, a, a, f9.3, a, f7.3, a, f7.3, a, f7.3, a, f8.3)', name, ": E_shell ", nc%e_shell, &
+              "  Delta_G ", nc%delta_G, "  Delta ", nc%delta, "  lambda2 ", nc%lambda2, "  E_pair ", nc%e_pair
+    end subroutine report
 
 end program main

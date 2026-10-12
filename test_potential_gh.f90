@@ -5,7 +5,8 @@ program test_potential_gh
     !   2. triaxial ellipsoid: C inside against the analytic ellipsoid potential,
     !      grad Y against finite differences of Y, enclosed volume
     !   3. on_grid: octant (D2h) filling agrees with the full calculation
-    !   4. 208Pb (spherical, FRDM2012 constants) in the HO basis: N=126 and Z=82 gaps
+    !   4. 208Pb (spherical, FRDM2012 constants) in the HO basis: N=126 and Z=82 gaps and the
+    !      spherical (2j+1) degeneracies (spin-orbit term by integration by parts)
     !---------------------------
     use iso_fortran_env, only: real64
     use constant_mod, only: pi, e2
@@ -196,8 +197,8 @@ contains
         real(dp), parameter :: V_s = 52.5_dp, V_a = 48.7_dp, A_den = 0.82_dp, B_den = 0.56_dp
         real(dp), parameter :: C_cur = 41.0_dp, a_2 = 22.0_dp, J = 35.0_dp, L = 99.0_dp
         real(dp), parameter :: Q_stiff = 25.0_dp, K = 300.0_dp
-        integer, parameter :: N_bas = 12, n_gh = 30
-        real(dp) :: Z, N, A, I, c1, delta, epsb, R_den, R_pot, e_rho_c, Vp, Vn, lam_p, lam_n, gap
+        integer, parameter :: N_bas = 12, n_gh = 44
+        real(dp) :: Z, N, A, I, c1, delta, epsb, R_den, R_pot, e_rho_c, Vp, Vn, lam_p, lam_n, gap, spread
         type(ellipsoid_shape) :: sph
         type(surface_quadrature) :: q
         type(ho_basis_type) :: basis
@@ -248,13 +249,13 @@ contains
             if (iq == 1) then
                 ! neutrons
                 call basis%potential_matrix(-Vn * Y, Vm)
-                call basis%spin_orbit_matrices(-Vn * dYx, -Vn * dYy, -Vn * dYz, Axy, Ayz, Azx)
+                call basis%spin_orbit_matrices_by_parts(-Vn * Y, Axy, Ayz, Azx)
                 call basis%build_hamiltonian(T, Vm, Axy, Ayz, Azx, so_strength(lam_n), H)
                 nocc = nint(N)
             else
                 ! protons
                 call basis%potential_matrix(-Vp * Y + e_rho_c * C, Vm)
-                call basis%spin_orbit_matrices(-Vp * dYx, -Vp * dYy, -Vp * dYz, Axy, Ayz, Azx)
+                call basis%spin_orbit_matrices_by_parts(-Vp * Y, Axy, Ayz, Azx)
                 call basis%build_hamiltonian(T, Vm, Axy, Ayz, Azx, so_strength(lam_p), H)
                 nocc = nint(Z)
             end if
@@ -262,11 +263,13 @@ contains
             gap = e(nocc + 1) - e(nocc)
             if (iq == 1) then
                 print '(a, 2f10.4)', " neutrons: e(126), e(127) [MeV] = ", e(nocc), e(nocc + 1)
-                call print_levels(e, nocc)
+                call print_levels(e, nocc, spread)
+                call check("max spread of the multiplets    ", spread, 1.2e-2_dp, ok_all)
                 call check("N = 126 gap shortfall from 2.5 ", max(0.0_dp, 2.5_dp - gap), 0.0_dp, ok_all)
             else
                 print '(a, 2f10.4)', " protons : e(82),  e(83)  [MeV] = ", e(nocc), e(nocc + 1)
-                call print_levels(e, nocc)
+                call print_levels(e, nocc, spread)
+                call check("max spread of the multiplets    ", spread, 1.2e-2_dp, ok_all)
                 call check("Z = 82 gap shortfall from 2.5  ", max(0.0_dp, 2.5_dp - gap), 0.0_dp, ok_all)
             end if
             print '(a, f8.4, a)', " gap = ", gap, " MeV"
@@ -275,15 +278,17 @@ contains
         print '(a, f8.2, a)', " total time: ", real(t1 - t0, dp) / rate, " s"
     end subroutine test_pb208
 
-    subroutine print_levels(e, nocc)
+    subroutine print_levels(e, nocc, spread_max)
         ! levels around the Fermi surface, grouped into (nearly) degenerate multiplets.
-        ! The spread within a multiplet comes from the Gauss-Hermite quadrature of
-        ! grad V1, which has a kink at the surface (see the README).
+        ! The spread within a multiplet is the Gauss-Hermite quadrature error (it decreases
+        ! with n_gh now that the spin-orbit term is integrated by parts, see the README).
         real(dp), intent(in) :: e(:)
         integer, intent(in) :: nocc
+        real(dp), intent(out) :: spread_max
         integer :: i, i0, nfill
         i = 1
         nfill = 0
+        spread_max = 0.0_dp
         do while (i <= size(e))
             i0 = i
             do while (i < size(e))
@@ -291,6 +296,7 @@ contains
                 i = i + 1
             end do
             nfill = nfill + (i - i0 + 1)
+            if (nfill > nocc - 30 .and. nfill <= nocc + 20) spread_max = max(spread_max, e(i) - e(i0))
             if (nfill > nocc - 30 .and. nfill <= nocc + 20) &
                 print '(a, i3, a, f10.4, a, f7.4, a, i4)', "   degeneracy ", i - i0 + 1, "  e = ", &
                     sum(e(i0:i)) / (i - i0 + 1), "  spread = ", e(i) - e(i0), "   filled up to ", nfill

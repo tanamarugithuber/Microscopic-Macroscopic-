@@ -1,0 +1,6 @@
+&frldm_input
+  Z = 94, N = 146,
+  eps2 = 0.22, gamma_deg = 0.0, eps4 = -0.05, eps6 = 0.04,
+  pairing = 'LN',
+  n_gh = 44
+/
