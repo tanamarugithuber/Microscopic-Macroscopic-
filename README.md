@@ -34,10 +34,12 @@ graph TD;
     constant_mod.f90-->potential_gh_mod.f90;
     grid_mod.f90-->micro_constant_mod.f90;
     micro_constant_mod.f90-->shell_bcs_mod.f90;
+    ho_basis_mod.f90-->shell_bcs_mod.f90;
+    potential_gh_mod.f90-->shell_bcs_mod.f90;
 ```
 
 - FRLDM：constant_mod → nucleus_mod → grid_mod → frldm_mod（B_1, B_3 は calculate_potential_hockney）→ main
-- Shell+BCS：ho_basis_mod（三軸変形 HO 基底）と potential_gh_mod（求積点上の V1, ∇V1, VC）で一粒子準位を求め，shell_bcs_mod でシェル補正と BCS を計算する予定です．ho_basis_mod と potential_gh_mod は互いに use していません（test_potential_gh.f90 で組み合わせています）．shell_bcs_mod はまだ中身がなく，main からも呼ばれていません．
+- Shell+BCS：ho_basis_mod（三軸変形 HO 基底）と potential_gh_mod（求積点上の V1, ∇V1, VC）で一粒子準位を求め，shell_bcs_mod でシェル補正と BCS を計算する予定です．ho_basis_mod と potential_gh_mod は互いに use しておらず，shell_bcs_mod が両方を使って一粒子準位を作ります．shell_bcs_mod はまだ main から呼ばれていません．
 
 ### テストプログラム
 
@@ -48,6 +50,7 @@ graph TD;
     ho_basis_mod.f90-->test_potential_gh.f90;
     potential_gh_mod.f90-->test_potential_gh.f90;
     calculate_potential_hockney.f90-->test_hockney.f90;
+    shell_bcs_mod.f90-->test_shell_bcs.f90;
 ```
 
 ### 使わないファイル (not_use/)
@@ -124,6 +127,21 @@ Hockney 法で，クーロン ∫ρ/|r−r′|，湯川 ∫ρ e^{−|r−r′|/a
 ```bash
 gfortran -O2 -fopenmp -I/usr/include constant_mod.f90 calculate_potential_hockney.f90 test_hockney.f90 -lfftw3 -o test_hockney.exe
 ./test_hockney.exe
+```
+
+## シェル補正と BCS (shell_bcs_mod.f90)
+
+`call shell_bcs_calculation(nucleus, mv, res)` で，(nucleus%epsilon2, nucleus%gamma_deg) の形について中性子・陽子のシェル補正と対補正を計算します（FRDM2012 Eqs. (78)–(111)，Möller–Nix 1992）．定数は micro_constant_mod のものを使います．
+
+1. 一粒子準位：ho_basis_mod の変形 HO 基底（ħω0 = C_cur/A^{1/3}，N_bas 殻）と potential_gh_mod の V1, ∇V1, VC（半径 R_pot の楕円体）からハミルトニアンを作り，対角化します．δ̄, ε̄, R_pot などは `mv` に入ります．
+2. Strutinsky 法：ガウス関数 × p 次の補正多項式（p = 8）で平滑化します．幅は γ_S = C_S ħω0 B_s です．E_shell = Σe_i − Ẽ．
+3. BCS：有効相互作用ギャップ Δ_G = r_mic B_s / N^{1/3} と平滑化した準位密度から G を決め（Eq. 107），BCS 方程式を解きます．対補正は E_pc − Ẽ_pc（Möller–Nix Eqs. (5), (27)）です．対の窓は「最後の束縛準位」か「フェルミ準位から 5 MeV 上」の高い方まで，下にも同じ数の準位をとります．奇数粒子は blocking せず，準粒子エネルギーを加えます．BCS 解がない場合（魔法数など）は Δ = 0 とします．
+
+FRDM2012 は Lipkin–Nogami 法を使っていて，r_mic = 3.2 MeV はその値です．BCS で使う場合は r_mic を合わせ直す必要があります．
+
+```bash
+gfortran -O2 -fopenmp constant_mod.f90 nucleus_mod.f90 grid_mod.f90 micro_constant_mod.f90 ho_basis_mod.f90 potential_gh_mod.f90 shell_bcs_mod.f90 test_shell_bcs.f90 -llapack -o test_shell_bcs.exe
+./test_shell_bcs.exe
 ```
 
 ## 運用
