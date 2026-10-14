@@ -32,6 +32,9 @@ module nucleus_mod
         !---------------------------
         ! Variables deformation parameters
         !---------------------------
+        ! epsilon2 : 四重極変形 eps2,  gamma_deg : 三軸性の角度 gamma [度],
+        ! epsilon4, epsilon6 : 十六重極・六十四重極変形 (shape_mod の epsilon 形状に渡す)
+        ! epsilon3, epsilon5 : 反転非対称な変形 (まだ使っていない)
         real(dp) :: epsilon2 = 0.0_dp ! quadrupole deformation epsilon
         real(dp) :: gamma_deg = 0.0_dp ! triaxiality gamma in degree (0: axially symmetric about z)
         real(dp) :: epsilon3 = 0.0_dp

@@ -30,6 +30,18 @@ module potential_gh_mod
     !   grad Y : 1/fm
     !   C      : fm^2
     !---------------------------
+    ! 【日本語での説明】
+    ! 鋭い生成形状 (半径 R_pot) から, 折り畳み湯川ポテンシャルとクーロンポテンシャルを
+    ! 求積点上で計算する (FRDM2012 式 81, 91). shell_bcs_mod から使う.
+    ! 【物理量】
+    !   Y(r)      : 湯川関数を核の体積で折り畳んだもの (核の奥深くで 1, 無次元)
+    !               V1 = -V0 Y  (V0 = V_p または V_n, 式 81)
+    !   grad Y    : Y の勾配 [1/fm] (スピン軌道項の検算に使う)
+    !   C(r)      : int_V d^3r' / |r - r'| [fm^2],  V_C = e rho_c C  (式 91)
+    !   a         : 湯川関数のレンジ a_pot [fm]
+    ! 【方法】体積積分を発散定理で表面積分に直すので, ポアソン方程式を解く必要がなく,
+    ! 無限遠の境界条件も厳密に満たされる. 表面を (u, v) のパネルに分け, 各パネルを
+    ! Gauss-Legendre で積分し, 評価点に近いパネルは再帰的に 4 分割する.
     !$ use omp_lib
     use iso_fortran_env, only: real64
     use constant_mod, only: pi
@@ -76,6 +88,9 @@ module potential_gh_mod
     public :: ellipsoid_from_eps_gamma, epsilon_shape_from, gauss_legendre
 
     contains
+        ! 【目的】形状 shape の表面を n_panel_u x n_panel_v 枚のパネルに分け, 各パネルの
+        ! Gauss 点の位置 rn と N x 重み Nw, パネルの中心 pc と大きさ psize を前計算する.
+        ! a は湯川関数のレンジ [fm], order は各パネルの Gauss-Legendre 点数 (1 方向).
         subroutine initialize_surface_quadrature(this, shape, a, n_panel_u, n_panel_v, order)
             implicit none
             class(surface_quadrature), intent(inout) :: this
@@ -115,6 +130,7 @@ module potential_gh_mod
 
         pure subroutine panel_nodes(this, box, rn, Nw)
             ! Gauss points of the panel box = (u0, u1, v0, v1): positions and N * weight
+            ! 【目的】パネル (u0, u1, v0, v1) の Gauss 点での表面点 rn と, 法線 x 面積要素 x 重み Nw.
             implicit none
             class(surface_quadrature), intent(in) :: this
             real(dp), intent(in) :: box(4)
@@ -138,6 +154,8 @@ module potential_gh_mod
 
         pure subroutine panel_geometry(this, box, centre, psize)
             ! centre and size (max distance from the centre to corners and edge midpoints)
+            ! 【目的】パネルの中心と大きさ (中心から隅・辺の中点までの最大距離) [fm].
+            ! 評価点がパネルに近いか (距離 < eta x 大きさ) の判定に使う.
             implicit none
             class(surface_quadrature), intent(in) :: this
             real(dp), intent(in) :: box(4)
@@ -163,6 +181,9 @@ module potential_gh_mod
             ! acc(2:4) += (e^-t - 1) / s * Nw - (d . Nw) d / s^3
             ! acc(5)   += (d . Nw) / s
             !---------------------------
+            ! 【目的】評価点 x について, 与えた Gauss 点の寄与を acc に足す.
+            !   acc(1) -> Y,  acc(2:4) -> grad Y,  acc(5) -> C  (at_point で係数を掛ける)
+            ! d = r' - x, s = |d|, t = s/a. t が小さいときはテイラー展開で桁落ちを避ける.
             implicit none
             real(dp), intent(in) :: x(3), a, rn(:,:), Nw(:,:)
             real(dp), intent(inout) :: acc(5)
@@ -194,6 +215,8 @@ module potential_gh_mod
             end do
         end subroutine add_nodes
 
+        ! 【目的】評価点がパネルに近い間, パネルを 4 分割して再帰的に積分する (最大 max_depth 回).
+        ! 近い点では被積分関数が急に変わるので, 細かく分けないと精度が落ちる.
         pure recursive subroutine refine_panel(this, x, box, depth, acc)
             implicit none
             class(surface_quadrature), intent(in) :: this
@@ -219,6 +242,8 @@ module potential_gh_mod
 
         pure subroutine at_point(this, x, Y, gradY, C)
             ! Y, grad Y and C at the point x (fm)
+            ! 【目的】1 点 x [fm] での Y, grad Y [1/fm], C [fm^2].
+            !   Y = acc(1) / (4 pi),  grad Y = -acc(2:4) / (4 pi a^2),  C = acc(5) / 2
             implicit none
             class(surface_quadrature), intent(in) :: this
             real(dp), intent(in) :: x(3)
@@ -241,6 +266,7 @@ module potential_gh_mod
 
         function volume(this) result(vol)
             ! enclosed volume (1/3) oint r . n dS, to check the shape and the quadrature
+            ! 【目的】求積点から計算した体積 1/3 oint r . n dS [fm^3] (形状と求積の検算用).
             implicit none
             class(surface_quadrature), intent(in) :: this
             real(dp) :: vol
@@ -263,6 +289,9 @@ module potential_gh_mod
             !   satisfies xg(n+1-i) = -xg(i); only the octant x, y, z >= 0 is computed
             !   (Y, C even; dY/dx odd in x and even in y, z, ...).
             !---------------------------
+            ! 【目的】テンソル格子 (xg, yg, zg) 全体で Y, grad Y, C を求める (通常は振動子基底の
+            ! Gauss-Hermite 点 b xi). d2h = .true. なら 1/8 領域だけ計算し, Y, C は偶関数,
+            ! dY/dx は x について奇関数 (y, z について偶関数) であることを使って残りを埋める.
             implicit none
             class(surface_quadrature), intent(in) :: this
             real(dp), intent(in) :: xg(:), yg(:), zg(:)

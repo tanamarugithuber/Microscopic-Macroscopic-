@@ -31,6 +31,23 @@ module shell_bcs_mod
     ! Kramers pairs (time-reversal partners) form the doubly degenerate levels of BCS.
     ! Constants are taken from micro_constant_mod.
     !---------------------------
+    ! 【日本語での説明】
+    ! 微視的補正 E_s+p = E_shell + E_pair (FRDM2012 2.7-2.10 節) を計算する.
+    !   E_shell : Strutinsky 殻補正 = (占有準位のエネルギー和) - (平滑化したエネルギー)   (式 78)
+    !   E_pair  : 対補正 = E_pc - <E_pc>  (Lipkin-Nogami 式 94-110, または BCS)          (式 79)
+    ! 【物理量】
+    !   e(:)         : 一粒子準位 [MeV] (昇順, 1 準位に核子 1 個; 時間反転の対が縮退)
+    !   gamma_S      : Strutinsky の平滑化幅 C_S hbar omega0 B_s [MeV]              (式 111)
+    !   p            : 補正多項式の次数 (8)
+    !   lambda_smooth: 平滑化した準位分布のフェルミ準位 [MeV]
+    !   g_smooth     : そこでの平滑化準位密度 (スピン両方) [1/MeV]
+    !   rho          : 二重縮退準位の平均密度 g_smooth / 2 [1/MeV]
+    !   Delta_G      : 有効相互作用の対ギャップ r_mic B_s / N^(1/3) [MeV]           (式 102)
+    !   G            : 対相互作用の強さ [MeV]                                       (式 107)
+    !   Delta, lambda: 対ギャップとフェルミ準位 (BCS/LN の解) [MeV]
+    !   lambda2      : Lipkin-Nogami の粒子数ゆらぎ定数 [MeV]                       (式 98)
+    !   N1, N2       : 対相関を考える準位の範囲 (二重縮退準位の番号)
+    !   E_pc, <E_pc> : 対相関エネルギー + 準粒子エネルギーとその平均 [MeV]   (式 101, 108)
     use iso_fortran_env, only: real64
     use constant_mod, only: pi, e2
     use nucleus_mod, only: nucleus_property
@@ -46,6 +63,7 @@ module shell_bcs_mod
     !---------------------------
     ! results for one kind of nucleon
     !---------------------------
+    ! 中性子または陽子 1 種類についての結果 (各成分の意味は上の物理量の一覧を参照)
     type, public :: nucleon_correction
         real(dp) :: e_sum = 0.0_dp          ! MeV, sum of the occupied single-particle energies
         real(dp) :: e_smooth = 0.0_dp       ! MeV, Strutinsky smooth energy
@@ -64,6 +82,7 @@ module shell_bcs_mod
         real(dp), allocatable :: e(:)       ! MeV, single-particle energies (ascending, one nucleon each)
     end type nucleon_correction
 
+    ! 原子核全体の結果: e_micro = e_shell + e_pair が main で E_mac に足す微視的補正
     type, public :: shell_bcs_result
         type(nucleon_correction) :: neutron, proton
         real(dp) :: B_s = 1.0_dp            ! relative surface area of the shape
@@ -89,6 +108,13 @@ module shell_bcs_mod
             ! n_gh   : Gauss-Hermite points per axis (default 44)
             ! pairing: 'LN' (Lipkin-Nogami, default, as FRDM2012) or 'BCS'
             !---------------------------
+            ! 【日本語】
+            ! 【目的】変形 (eps2, gamma, eps4, eps6) での殻補正と対補正を中性子・陽子それぞれ計算する.
+            ! 【手順】
+            !   1. calculate_microscopic_variables で R_pot, V_p, V_n, lambda_p, lambda_n などを求める.
+            !   2. 振動子基底を作り, 半径 R_pot の epsilon 形状で Y, C を Gauss-Hermite 点上に求める.
+            !   3. 中性子 h = T - V_n Y + V_so,  陽子 h = T - V_p Y + e rho_c C + V_so を対角化する.
+            !   4. Strutinsky 補正 (strutinsky_correction) と対補正 (ln_correction / bcs_correction).
             implicit none
             type(nucleus_property), intent(in) :: nucleus
             type(microscopic_variables), intent(inout) :: mv
@@ -162,6 +188,9 @@ module shell_bcs_mod
 
         contains
 
+            ! 【目的】1 種類の核子 (n_part 個) について E_shell と E_pair を求める.
+            ! delta_odd は奇数核子数のとき <E_pc> に足す平均ギャップ r_mac B_s / N^(1/3)
+            ! (巨視的エネルギー式 63, 64 と同じ項なので, 両者で打ち消し合う).
             subroutine correct_one(nc, n_part)
                 type(nucleon_correction), intent(inout) :: nc
                 integer, intent(in) :: n_part
@@ -196,6 +225,12 @@ module shell_bcs_mod
             ! e_smooth : smooth energy  int^lambda e g(e) de,  with  int^lambda g(e) de = n_part
             ! g_lambda : smooth level density at lambda
             !---------------------------
+            ! 【日本語】
+            ! 【目的】Strutinsky 殻補正の 2 つの項 e_sum = sum_{i<=N} e_i と e_smooth を求める.
+            ! 【式】平滑化準位密度 g(e) = (1/gamma) sum_i f((e - e_i)/gamma),
+            !   f(x) = e^(-x^2)/sqrt(pi) sum_{m=0}^{p/2} c_m H_2m(x)  (ガウス関数 x 補正多項式)
+            !   フェルミ準位 lambda は int^lambda g(e) de = N を二分法で解いて求め,
+            !   e_smooth = int^lambda e g(e) de とする. E_shell = e_sum - e_smooth.
             implicit none
             real(dp), intent(in) :: e(:), gam
             integer, intent(in) :: n_part, p
@@ -226,6 +261,7 @@ module shell_bcs_mod
             g_lambda = smooth_density(e, lambda, gam, p)
         end subroutine strutinsky_correction
 
+        ! 【目的】エルミート多項式 H_0(x) ... H_nmax(x).  漸化式 H_{n+1} = 2x H_n - 2n H_{n-1}
         pure subroutine hermite(x, nmax, Hn)
             ! physicists' Hermite polynomials H_0 .. H_nmax at x
             implicit none
@@ -240,6 +276,7 @@ module shell_bcs_mod
             end do
         end subroutine hermite
 
+        ! 【目的】Strutinsky の補正多項式の係数 c_m = (-1)^m / (4^m m!)
         pure function corr_coef(m) result(c)
             ! c_m = (-1)^m / (4^m m!)
             implicit none
@@ -252,6 +289,7 @@ module shell_bcs_mod
             end do
         end function corr_coef
 
+        ! 【目的】平滑化準位密度 g(lambda) [1/MeV] (スピン両方, 1 準位 1 核子として数える).
         pure function smooth_density(e, lambda, gam, p) result(g)
             ! g(lambda) = (1/gam) sum_i f((lambda - e_i)/gam)
             implicit none
@@ -273,6 +311,7 @@ module shell_bcs_mod
             g = g / (sqrt(pi) * gam)
         end function smooth_density
 
+        ! 【目的】平滑化した粒子数 N(lambda) = int_{-inf}^lambda g(e) de (解析的に積分した式).
         pure function smooth_number(e, lambda, gam, p) result(nn)
             ! N(lambda) = sum_i [ erfc(-x)/2 - exp(-x^2)/sqrt(pi) sum_{m>=1} c_m H_{2m-1}(x) ]
             ! (int_{-inf}^x exp(-t^2) H_n(t) dt = -exp(-x^2) H_{n-1}(x), n >= 1)
@@ -299,6 +338,7 @@ module shell_bcs_mod
             end do
         end function smooth_number
 
+        ! 【目的】平滑化したエネルギー E(lambda) = int_{-inf}^lambda e g(e) de [MeV].
         pure function smooth_energy(e, lambda, gam, p) result(es)
             ! E(lambda) = sum_i [ e_i n_i(x) + gam int_{-inf}^x t f(t) dt ],
             ! int_{-inf}^x t f(t) dt = -exp(-x^2)/sqrt(pi) sum_m c_m [H_2m(x)/2 + 2m H_{2m-2}(x)]
@@ -339,6 +379,9 @@ module shell_bcs_mod
             ! above the Fermi level, whichever is higher; the same number of levels below.
             ! nk: sharp occupation (2, 1, 0), n_int: nucleons in the window (Eq. 94)
             !---------------------------
+            ! 【日本語】
+            ! 【目的】二重縮退準位 ek と対相関の窓 N1..N2, 各準位の鋭い占有数 nk を決める.
+            ! ek(k) は時間反転の対 (2k-1, 2k) の平均. n_int は窓内の核子数 (式 94).
             implicit none
             real(dp), intent(in) :: e(:)
             integer, intent(in) :: n_part
@@ -373,6 +416,8 @@ module shell_bcs_mod
             n_int = real(n_part - 2 * (N1 - 1), dp)
         end subroutine pairing_window
 
+        ! 【目的】平均的な原子核で対ギャップが Delta_G になるように G を決める (式 106, 107).
+        ! y1, y2 は窓の下端・上端の, 平均準位密度 rho で測ったフェルミ準位からのエネルギー.
         subroutine pairing_strength(n_part, N1, N2, rho, delta_G, G, y1, y2)
             ! G from the average gap equation (Eq. 107):
             !   1/G = rho/2 [asinh(y2/Delta_G) - asinh(y1/Delta_G)],  y1, y2 from Eq. (106)
@@ -392,6 +437,10 @@ module shell_bcs_mod
             ! gap equation by bisection in delta, lambda(delta) from the number equation.
             ! delta = 0 if there is no non-trivial solution.
             !---------------------------
+            ! 【日本語】
+            ! 【目的】準位 eps について BCS のギャップ方程式と粒子数方程式を解き,
+            ! Delta と lambda を求める.
+            ! Delta について二分法, 各 Delta で lambda を粒子数方程式から二分法で決める.
             implicit none
             real(dp), intent(in) :: eps(:), n_int, G
             real(dp), intent(out) :: delta, lambda
@@ -460,6 +509,11 @@ module shell_bcs_mod
             !      levels numbered from the bottom), e_pc (Moller-Nix Eq. 5), e_pc_ave (Eq. 27)
             ! Odd particle numbers: no blocking, quasi-particle energy of the odd level added.
             !---------------------------
+            ! 【日本語】
+            ! 【目的】BCS による対補正 E_pair = e_pc - e_pc_ave を求める (Moller-Nix 1992).
+            !   v_k^2 = [1 - (e_k - lambda) / sqrt((e_k - lambda)^2 + Delta^2)] / 2  (占有確率)
+            !   e_pc  = sum (2 v_k^2 - n_k) e_k - Delta^2/G - G/2 sum (2 v_k^4 - n_k)  (Moller-Nix 式 5)
+            !   閉殻付近では Delta = 0 (解が潰れる) になり, e_pc = 0 となる.
             implicit none
             real(dp), intent(in) :: e(:), rho, delta_G
             integer, intent(in) :: n_part
@@ -522,6 +576,13 @@ module shell_bcs_mod
             !   C = rho Delta_G/32 [Delta_G (y2/(y2^2+Delta_G^2) - y1/(y1^2+Delta_G^2))
             !       + atan(y2/Delta_G) - atan(y1/Delta_G)] = sum u^4 v^4
             !---------------------------
+            ! 【日本語】
+            ! 【目的】Lipkin-Nogami (LN) による対補正 E_pair = e_pc - e_pc_ave (FRDM2012 の方法).
+            !   LN は粒子数の射影を近似的に取り入れた BCS で, 閉殻でも Delta > 0 の解をもつ.
+            !   準位をずらした eps_k = e_k + (4 lambda2 - G) v_k^2 (式 97) について BCS を解き,
+            !   lambda2 (式 98) が自己無撞着になるまで二分法で探す.
+            !   e_pc = BCS と同じ項 - 4 lambda2 sum u_k^2 v_k^2  (式 101)
+            !   e_pc_ave は平均的な原子核での値 (式 108-110).
             implicit none
             real(dp), intent(in) :: e(:), rho, delta_G
             integer, intent(in) :: n_part
@@ -598,6 +659,7 @@ module shell_bcs_mod
 
         contains
 
+            ! 【目的】l2 で解いた BCS 解から式 (98) の lambda2 を計算し, l2 との差を返す (0 が解).
             function ln_function(l2) result(f)
                 ! lambda2 of Eq. (98) minus l2, for the self-consistent solution at l2
                 real(dp), intent(in) :: l2
@@ -615,6 +677,7 @@ module shell_bcs_mod
                     / (s22**2 - s44) - l2
             end function ln_function
 
+            ! 【目的】lambda2 = l2 を固定して, ずらした準位の BCS 方程式を v_k^2 について反復で解く.
             subroutine inner_solution(l2)
                 ! BCS equations for eps_k = e_k + (4 l2 - G) v_k^2, iterated in v_k^2
                 ! (starts from the v_k^2 of the previous call)
@@ -641,6 +704,7 @@ module shell_bcs_mod
         ! relative surface area of an ellipsoid
         !==========================================================================
 
+        ! 【目的】楕円体の相対表面積 B_s = S / (4 pi R^2), R^3 = R_x R_y R_z (検算・テスト用).
         function ellipsoid_relative_area(shape) result(B_s)
             ! surface area / (4 pi R^2), R^3 = R_x R_y R_z
             implicit none

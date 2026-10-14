@@ -25,6 +25,14 @@ program main
     !   search               : ground-state search on the (eps2, eps4) grid
     !   eps2_min, eps2_max, d_eps2, eps4_min, eps4_max, d_eps4 : search grid
     !---------------------------
+    ! 【日本語での説明】
+    ! 1 つの原子核について FRLDM + 殻補正 + 対補正の質量を計算する.
+    !   M_th = E_mac(Z, N, 形状) + E_shell + E_pair   (質量超過 [MeV])
+    !   B    = Z M_H + N M_n - M_th                    (結合エネルギー [MeV])
+    !   E_mac : frldm_mod (FRDM2012 式 62),  E_shell, E_pair : shell_bcs_mod
+    ! 入力は namelist &frldm_input (第 1 引数のファイル, 既定 input.nml).
+    ! search = .true. なら (eps2, eps4) の格子上で E_mac + E_shell + E_pair が最小の形状を探し,
+    ! その形状で詳しい結果を出力する. 零点エネルギー (2.11 節) はまだ含まない.
     !$ use omp_lib
     use iso_fortran_env, only: real64
     use constant_mod, only: pi
@@ -38,6 +46,15 @@ program main
     implicit none
     integer, parameter :: dp = real64
 
+    ! 入力変数 (namelist &frldm_input) と既定値 (208Pb, 球形):
+    !   Z, N        : 陽子数, 中性子数
+    !   eps2, gamma_deg, eps4, eps6 : 変形 (gamma は度)
+    !   pairing     : 'LN' (Lipkin-Nogami, 既定) または 'BCS'
+    !   n_gh        : 一粒子問題の Gauss-Hermite 点数 (1 軸あたり)
+    !   use_grid, h, n_times : B_1, B_3 を格子 + Hockney 法で求める (検算用;
+    !                          格子間隔 h [fm], 箱は核の n_times 倍)
+    !   search      : 基底状態探索をするか
+    !   eps2_min, eps2_max, d_eps2, eps4_min, eps4_max, d_eps4 : 探索する格子
     integer :: Z = 82, N = 126, n_gh = 44, n_times = 3
     real(dp) :: eps2 = 0.0_dp, gamma_deg = 0.0_dp, eps4 = 0.0_dp, eps6 = 0.0_dp, h = 0.5_dp
     character(8) :: pairing = 'LN'
@@ -96,6 +113,12 @@ contains
 
     subroutine calculate(e2_, gam_, e4_, e6_, verbose, e_pot)
         ! FRLDM + shell + pairing at one deformation; e_pot = M_th (mass excess, MeV)
+        ! 【日本語】
+        ! 【目的】1 つの変形 (e2_, gam_ [度], e4_, e6_) で M_th を計算し, e_pot に返す.
+        ! verbose = .true. なら各項を表示する.
+        ! 【手順】1. nucleus に Z, N と変形を入れ, 半径 R_a の epsilon 形状を作る.
+        !         2. frldm_mod で E_mac (use_grid なら格子を用意して B_1, B_3 を格子で計算).
+        !         3. shell_bcs_mod で E_shell + E_pair.  4. M_th = E_mac + E_s+p, B = Z M_H + N M_n - M_th.
         real(dp), intent(in) :: e2_, gam_, e4_, e6_
         logical, intent(in) :: verbose
         real(dp), intent(out) :: e_pot
@@ -171,6 +194,7 @@ contains
         print '(a, f8.2, a)', "   time: ", real(t1 - t0, dp) / rate, " s"
     end subroutine calculate
 
+    ! 【目的】中性子または陽子の殻補正・対補正の内訳を 1 行で表示する.
     subroutine report(name, nc)
         character(*), intent(in) :: name
         type(nucleon_correction), intent(in) :: nc

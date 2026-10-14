@@ -25,6 +25,19 @@ module ho_basis_mod
     !
     ! Requires LAPACK (dstev, zheev).
     !---------------------------
+    ! 【日本語での説明】
+    ! 変形 (デカルト) 調和振動子基底で一粒子ハミルトニアン h = T + V + V_so の行列を作り,
+    ! 対角化して一粒子準位を求める. shell_bcs_mod から使う.
+    ! 【物理量】
+    !   hbar_omega(3) : 各軸の振動子エネルギー hbar omega_x, y, z [MeV]
+    !   hbar_omega0   : (hw_x hw_y hw_z)^(1/3) [MeV]
+    !   b(3)          : 振動子長 b_i = hbar / sqrt(m omega_i) = hbar c / sqrt(m c^2 hbar omega_i) [fm]
+    !   N_bas         : 基底に含める振動子殻の数 (FRDM2012 では 12)
+    !   nq(:, a)      : 基底状態 a の量子数 (nx, ny, nz),  parity(a) = (-1)^(nx + ny + nz)
+    !   xi, u, du     : Gauss-Hermite 点と, そこでの 1 次元基底関数 (重みの平方根込み) とその微分
+    !   kappa         : スピン軌道の強さ lambda (hbar / 2mc)^2 [fm^2]
+    ! 【方法】局所演算子の行列要素は Gauss-Hermite 求積で計算する:
+    !   <n'|f(x)|n> = sum_k u_n'(k) u_n(k) f(b xi_k)
     !$ use omp_lib
     use iso_fortran_env, only: real64
     use constant_mod, only: pi, hbar_c, m_nucleon
@@ -83,6 +96,9 @@ module ho_basis_mod
             ! rescaled so that hw_x hw_y hw_z = hbar_omega0**3 (volume conservation).
             ! gamma in radian.
             !---------------------------
+            ! 【日本語】
+            ! 【目的】Nilsson の (eps, gamma) から各軸の hbar omega_i を求める. 体積保存のため
+            ! hw_x hw_y hw_z = hbar_omega0^3 となるよう規格化する.
             implicit none
             real(dp), intent(in) :: hbar_omega0, eps, gamma
             real(dp) :: hw(3)
@@ -94,6 +110,11 @@ module ho_basis_mod
             hw = hw * hbar_omega0 / product(hw)**(1.0_dp / 3.0_dp)
         end function frequencies_from_eps_gamma
 
+        ! 【目的】基底 (量子数の組) と Gauss-Hermite 点上の基底関数を準備する.
+        ! 【打ち切り】hw_x (nx + 1/2) + hw_y (ny + 1/2) + hw_z (nz + 1/2) <= (N_bas + 3/2) hw0
+        ! 【基底関数】u_n(k) = sqrt(W_k) hhat_n(xi_k),  W_k = w_k exp(xi_k^2)
+        !   微分: d/dxi psi_n = sqrt(n/2) psi_{n-1} - sqrt((n+1)/2) psi_{n+1}
+        ! n_gh は n_ax_max + 1 より大きくなければならない (行列要素を厳密に積分するため).
         subroutine initialize_ho_basis(this, hbar_omega, N_bas, n_gh)
             implicit none
             class(ho_basis_type), intent(inout) :: this
@@ -189,6 +210,7 @@ module ho_basis_mod
             end function osc_energy
         end subroutine initialize_ho_basis
 
+        ! 【目的】axis 方向 (1=x, 2=y, 3=z) の i 番目の求積点の座標 x = b xi_i [fm].
         pure function point(this, axis, i) result(x)
             ! coordinate (fm) of the i-th quadrature point along axis (1=x, 2=y, 3=z)
             implicit none
@@ -203,6 +225,8 @@ module ho_basis_mod
             ! hh(n) = H_n(x) exp(-x^2/2) / sqrt(2^n n! sqrt(pi)),  n = 0..nmax
             ! by the stable three-term recursion
             !---------------------------
+            ! 【目的】規格化された 1 次元振動子関数 hhat_n(x) = H_n(x) e^(-x^2/2) / sqrt(2^n n! sqrt(pi)).
+            ! 漸化式 hhat_{n+1} = sqrt(2/(n+1)) x hhat_n - sqrt(n/(n+1)) hhat_{n-1} で安定に計算する.
             implicit none
             integer, intent(in) :: nmax
             real(dp), intent(in) :: x
@@ -223,6 +247,9 @@ module ho_basis_mod
             !   nodes  : eigenvalues of the Jacobi matrix (Golub-Welsch), polished by Newton
             !   weights: Christoffel formula  W(k) = 1 / sum_{m<n} hhat_m(x_k)^2
             !---------------------------
+            ! 【目的】重み exp(-x^2) の Gauss-Hermite 節点 x と, 重み w に exp(x^2) を掛けた W.
+            ! 節点はヤコビ行列の固有値 (Golub-Welsch 法, LAPACK dstev) をニュートン法で磨いたもの.
+            ! 重みは Christoffel の公式 W_k = 1 / sum_{m<n} hhat_m(x_k)^2.
             implicit none
             integer, intent(in) :: n
             real(dp), intent(out) :: x(n), W(n)
@@ -254,6 +281,9 @@ module ho_basis_mod
             ! <n'|p^2/2m|n> = hw/4 [ (2n+1) d_{n',n} - sqrt(n(n-1)) d_{n',n-2}
             !                        - sqrt((n+1)(n+2)) d_{n',n+2} ]   per axis
             !---------------------------
+            ! 【目的】運動エネルギー p^2/2m の行列 T(a, b) [MeV] を解析的に作る.
+            ! 軸ごとに <n'|p^2/2m|n> = hw/4 [(2n+1) delta_{n',n} - sqrt(n(n-1)) delta_{n',n-2}
+            ! - sqrt((n+1)(n+2)) delta_{n',n+2}] で, 量子数が 2 軸以上で違う組は 0.
             implicit none
             class(ho_basis_type), intent(in) :: this
             real(dp), intent(out) :: T(this%n_states, this%n_states)
@@ -288,6 +318,9 @@ module ho_basis_mod
             !   (n'x,n'y,n'z) = nq(:,a), (nx,ny,nz) = nq(:,b)
             ! The sum is factorised axis by axis: z -> y -> x.
             !---------------------------
+            ! 【目的】求積点上の関数 F と左右の 1 次元関数 L, R から行列 M(a, b) を作る汎用ルーチン.
+            ! (L, R に u または du を渡すと, ポテンシャルやスピン軌道の行列要素になる.)
+            ! 和を z -> y -> x の順に 1 軸ずつ縮約して計算量を減らしている.
             implicit none
             class(ho_basis_type), intent(in) :: this
             real(dp), intent(in) :: Lx(0:,:), Rx(0:,:), Ly(0:,:), Ry(0:,:), Lz(0:,:), Rz(0:,:)
@@ -353,6 +386,7 @@ module ho_basis_mod
 
         subroutine potential_matrix(this, V, M)
             ! M(a,b) = <a|V|b>, V(i,j,k) given on the quadrature points
+            ! 【目的】局所ポテンシャル V (MeV, 求積点上) の行列要素 <a|V|b> [MeV].
             implicit none
             class(ho_basis_type), intent(in) :: this
             real(dp), intent(in) :: V(:,:,:)
@@ -371,6 +405,8 @@ module ho_basis_mod
             ! A_jk = D_jk - D_kj  (real antisymmetric)
             ! dVx, dVy, dVz: gradient of V1 (MeV/fm) on the quadrature points
             !---------------------------
+            ! 【目的】スピン軌道項の空間部分 A_jk = <a|(d_j V1) d_k|b> - <a|(d_k V1) d_j|b> を,
+            ! grad V1 から作る (検算用. 実際の計算では spin_orbit_matrices_by_parts を使う).
             implicit none
             class(ho_basis_type), intent(in) :: this
             real(dp), intent(in) :: dVx(:,:,:), dVy(:,:,:), dVz(:,:,:)
@@ -422,6 +458,10 @@ module ho_basis_mod
             ! ~1e-4 MeV instead of ~4e-2 MeV.
             ! V: V1 (with its strength, MeV) on the quadrature points
             !---------------------------
+            ! 【日本語】
+            ! 【目的】A_jk を V1 そのものから部分積分で作る:
+            !   A_jk(a, b) = - int V1 (d_j phi_a d_k phi_b - d_k phi_a d_j phi_b) d^3r
+            ! V1 は表面で連続 (grad V1 はとがる) なので求積の精度が高い.
             implicit none
             class(ho_basis_type), intent(in) :: this
             real(dp), intent(in) :: V(:,:,:)
@@ -448,6 +488,7 @@ module ho_basis_mod
             deallocate(U, Dx, Dy, Dz)
         end subroutine spin_orbit_matrices_by_parts
 
+        ! 【目的】スピン軌道の強さ kappa = lambda (hbar / 2mc)^2 [fm^2] (lambda は FRDM2012 式 89, 90).
         pure function so_strength(lambda) result(kappa)
             ! kappa = lambda * (hbar/(2 m c))^2  [fm^2]
             implicit none
@@ -465,6 +506,9 @@ module ho_basis_mod
             !   <dn|h|up> = i kappa A_yz - kappa A_zx
             ! TODO: block-diagonalise with parity and signature (D2h)
             !---------------------------
+            ! 【目的】スピンを含む 2 n_states 次元の複素エルミート行列 H を組む.
+            ! V_so = i kappa sigma . (grad V1 x grad) を sigma の成分で書くと上の 4 ブロックになる.
+            ! 添字 a がスピン上向き, a + n_states が下向き.
             implicit none
             class(ho_basis_type), intent(in) :: this
             real(dp), intent(in) :: T(:,:), V(:,:), Axy(:,:), Ayz(:,:), Azx(:,:)
@@ -481,6 +525,8 @@ module ho_basis_mod
             H = 0.5_dp * (H + conjg(transpose(H)))
         end subroutine build_hamiltonian
 
+        ! 【目的】エルミート行列 H の全固有値 e (昇順, 一粒子準位 [MeV]) と
+        ! 固有ベクトル C を求める (LAPACK zheev).
         subroutine diagonalize_hamiltonian(H, e, C)
             ! all eigenvalues e (ascending) and eigenvectors C(:,i) of a Hermitian matrix
             implicit none

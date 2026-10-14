@@ -9,6 +9,8 @@ program test_shape
     ! build:
     !   gfortran -O2 constant_mod.f90 shape_mod.f90 test_shape.f90 -o test_shape.exe
     !---------------------------
+    ! 【日本語】shape_mod のテスト: epsilon 形状が楕円体と一致すること, 体積保存,
+    ! inside と eval の整合, N = dr/du x dr/dv, 240Pu の beta_l が FRDM2012 の表と合うこと.
     use iso_fortran_env, only: real64
     use constant_mod, only: pi
     use shape_mod

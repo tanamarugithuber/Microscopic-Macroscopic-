@@ -28,6 +28,24 @@ module shape_mod
     !                      N = dr/du x dr/dv (outward normal times area element)
     !   inside(x)        : .true. if the point x is inside the surface
     !---------------------------
+    ! 【日本語での説明】
+    ! 原子核の鋭い表面をもつ生成形状 (sharp generating shape) を表すモジュール.
+    ! FRLDM の B_1, B_3, B_s (frldm_mod) と一粒子ポテンシャル (potential_gh_mod)
+    ! は, すべてここで定義した表面点 r と法線 N を使って計算する.
+    ! 【物理量】
+    !   R          : 同じ体積をもつ球の半径 [fm] (体積 = 4/3 pi R^3)
+    !   eps2       : 四重極変形 epsilon_2 (> 0 で長球, < 0 で扁平)
+    !   gamma      : 三軸性の角度 [rad] (0 で z 軸まわりに軸対称)
+    !   eps4, eps6 : 十六重極, 六十四重極変形 epsilon_4, epsilon_6
+    !   f(k)       : 伸長係数 f_k = 1 - 2/3 eps2 cos(gamma + 2 pi k/3)
+    !                (k = 1, 2, 3 が x, y, z; 調和振動子の振動数比 omega_k / omega0)
+    !   C          : 伸長座標での等ポテンシャル面の大きさ [fm] (体積保存で決まる)
+    ! 【形状の式】伸長座標 xi_k = sqrt(f_k) x_k の極座標 (rho_t, theta_t, phi_t) で
+    !   rho_t^2 F(theta_t, phi_t) = C^2,
+    !   F = f_x n_x^2 + f_y n_y^2 + f_z n_z^2 + 2 eps4 V4 + 2 eps6 P6   (FRDM2012 式 21-23)
+    ! 【構造】抽象型 surface_shape が eval (表面点と法線) と inside (内外判定) を要求し,
+    ! ellipsoid_shape と epsilon_shape がそれを実装する. volume, relative_area, extent
+    ! は eval だけを使うので, どの形状にも共通に使える.
     use iso_fortran_env, only: real64
     use constant_mod, only: pi
     implicit none
@@ -35,6 +53,7 @@ module shape_mod
 
     integer, parameter :: dp = real64
 
+    ! すべての形状の親 (抽象型). 子の型は eval と inside を必ず実装する.
     type, abstract, public :: surface_shape
         contains
             procedure(surface_eval), deferred :: eval
@@ -97,6 +116,8 @@ module shape_mod
             !   R_x : R_y : R_z = 1/omega_x : 1/omega_y : 1/omega_z,   R_x R_y R_z = R^3
             ! gamma in radian.
             !---------------------------
+            ! 【目的】(eps, gamma) から体積 4/3 pi R^3 の三軸楕円体を作る.
+            ! 【式】半軸 R_k = R (f_x f_y f_z)^(1/3) / f_k  ->  R_x R_y R_z = R^3
             implicit none
             real(dp), intent(in) :: R, eps, gamma
             type(ellipsoid_shape) :: shape
@@ -109,6 +130,8 @@ module shape_mod
         pure subroutine ellipsoid_eval(this, u, v, r, N)
             !   r = (a sin u cos v, b sin u sin v, c cos u)
             !   N = (b c sin^2 u cos v, a c sin^2 u sin v, a b sin u cos u)
+            ! 【目的】楕円体表面のパラメータ表示. u は極角, v は方位角.
+            ! 【出力】r : 表面点 [fm],  N = dr/du x dr/dv : 外向き法線 x 面積要素 [fm^2]
             implicit none
             class(ellipsoid_shape), intent(in) :: this
             real(dp), intent(in) :: u, v
@@ -126,6 +149,7 @@ module shape_mod
         end subroutine ellipsoid_eval
 
         pure function ellipsoid_inside(this, x) result(yes)
+            ! 【目的】点 x [fm] が楕円体の内側かを判定する.  式: sum_k (x_k / R_k)^2 <= 1
             implicit none
             class(ellipsoid_shape), intent(in) :: this
             real(dp), intent(in) :: x(3)
@@ -138,6 +162,11 @@ module shape_mod
         !==========================================================================
 
         pure function stretch_factors(eps, gamma) result(f)
+            ! 【目的】伸長係数 f_k を返す (FRDM2012 式 21 の第 1 項の係数).
+            !   f_x = 1 - 2/3 eps cos(gamma + 2 pi/3)
+            !   f_y = 1 - 2/3 eps cos(gamma - 2 pi/3)
+            !   f_z = 1 - 2/3 eps cos(gamma)
+            ! f_k <= 0 では形状が定義できないので停止する.
             implicit none
             real(dp), intent(in) :: eps, gamma
             real(dp) :: f(3)
@@ -152,6 +181,12 @@ module shape_mod
             ! epsilon shape of volume 4/3 pi R^3; gamma in radian
             !   V = det(D)/3 int F^(-3/2) dOmega C^3,  D = diag(f^(-1/2))      (Eq. 25)
             !---------------------------
+            ! 【目的】体積が 4/3 pi R^3 になる epsilon 形状を作る (FRDM2012 式 25).
+            ! 【式】伸長座標での体積 V_xi = C^3/3 int F^(-3/2) dOmega,
+            !   実空間の体積 V = det(D) V_xi,  D = diag(f^(-1/2)),  det(D) = (f_x f_y f_z)^(-1/2)
+            !   -> C = [4 pi R^3 sqrt(f_x f_y f_z) / int F^(-3/2) dOmega]^(1/3)
+            ! 積分は 1/8 領域 (theta, phi in [0, pi/2]) を 64 x 64 点の Gauss-Legendre で行い 8 倍する
+            ! (D2h 対称性). [-1, 1] -> [0, pi/2] の変換でヤコビアン (pi/4)^2 が掛かる.
             implicit none
             real(dp), intent(in) :: R, eps2, gamma, eps4, eps6
             type(epsilon_shape) :: shape
@@ -183,6 +218,13 @@ module shape_mod
 
         pure function epsilon_F(this, th, ph) result(Fv)
             ! F(theta_t, phi_t) of the module header
+            ! 【目的】形状関数 F(theta_t, phi_t) の値 (FRDM2012 式 21-23).
+            ! 【物理量】n : 伸長座標での単位方向ベクトル,  u = cos(theta_t),  v = cos(2 phi_t)
+            !   P4, P6           : ルジャンドル多項式
+            !   a40, a42, a44    : gamma で決まる epsilon_4 項の係数 (式 23)
+            !   SY42, SY44       : 非軸対称な球面調和関数の組 (gamma /= 0 のときに効く)
+            !   V4 = a40 P4 + sqrt(4 pi/9) (a42 SY42 + a44 SY44)   (式 22)
+            ! 【式】F = sum_k f_k n_k^2 + 2 eps4 V4 + 2 eps6 P6  (eps4 = eps6 = 0 なら第 1 項だけ)
             implicit none
             class(epsilon_shape), intent(in) :: this
             real(dp), intent(in) :: th, ph
@@ -213,6 +255,12 @@ module shape_mod
             ! N = dr/du x dr/dv = det(D) D^(-1) [rho^2 sin u e - rho rho_u sin u e_theta - rho rho_v e_phi]
             ! (derivatives of F by central differences)
             !---------------------------
+            ! 【目的】epsilon 形状表面のパラメータ表示.
+            ! u, v は伸長座標の角度 theta_t, phi_t であり, 実空間の極角・方位角ではない.
+            ! 【式】rho = C F^(-1/2) (伸長座標での動径),  r = D rho e  (e: (u, v) 方向の単位ベクトル)
+            !   d(rho e)/du x d(rho e)/dv = rho^2 sin u e - rho rho_u sin u e_theta - rho rho_v e_phi
+            !   実空間では (D a) x (D b) = det(D) D^(-1) (a x b) を使う. dinv = sqrt(f) = D^(-1).
+            !   rho_u = -rho F_u / (2F),  rho_v = -rho F_v / (2F)  (F の微分は刻み hd の中心差分)
             implicit none
             class(epsilon_shape), intent(in) :: this
             real(dp), intent(in) :: u, v
@@ -240,6 +288,9 @@ module shape_mod
 
         pure function epsilon_inside(this, x) result(yes)
             ! rho_t^2 F(theta_t, phi_t) <= C^2 in stretched coordinates
+            ! 【目的】点 x [fm] が epsilon 形状の内側かを判定する.
+            ! 【式】xi = sqrt(f) x を極座標 (rho_t, theta_t, phi_t) にし, rho_t^2 F(theta_t, phi_t) <= C^2 なら内側.
+            ! acos の引数は丸め誤差で |.| > 1 にならないよう [-1, 1] に制限している.
             implicit none
             class(epsilon_shape), intent(in) :: this
             real(dp), intent(in) :: x(3)
@@ -263,6 +314,8 @@ module shape_mod
 
         function shape_extent(this) result(ext)
             ! largest |x|, |y|, |z| on the surface (sampled)
+            ! 【目的】表面上の |x|, |y|, |z| の最大値 [fm] を 65 x 129 点のサンプリングで求める.
+            ! grid_mod が計算箱の大きさを決めるのに使う.
             implicit none
             class(surface_shape), intent(in) :: this
             real(dp) :: ext(3), r(3), N(3)
@@ -279,6 +332,7 @@ module shape_mod
 
         function shape_volume(this) result(vol)
             ! V = 1/3 oint r . N du dv
+            ! 【目的】形状の体積 [fm^3].  式: V = 1/3 oint r . N du dv  (発散定理, div r = 3)
             implicit none
             class(surface_shape), intent(in) :: this
             real(dp) :: vol
@@ -287,6 +341,8 @@ module shape_mod
 
         function shape_relative_area(this) result(B_s)
             ! surface area / (4 pi R^2), 4/3 pi R^3 = volume                     (Eq. 70)
+            ! 【目的】相対表面積 B_s = S / (4 pi R^2),  R = (3V / 4 pi)^(1/3)   (FRDM2012 式 70)
+            ! S は表面積, V は体積. 平均対ギャップ (式 63-65) と Strutinsky の幅 gamma_S (式 111) に使う.
             implicit none
             class(surface_shape), intent(in) :: this
             real(dp) :: B_s, vol
@@ -296,6 +352,9 @@ module shape_mod
 
         function surface_integral(this, what) result(s)
             ! what = 1: volume, 2: area.  Gauss-Legendre over one octant times 8 (D2h)
+            ! 【目的】what = 1 で体積 V = 1/3 oint r . N du dv,  what = 2 で表面積 S = oint |N| du dv.
+            ! 1/8 領域 (u, v in [0, pi/2]) を 64 x 64 点の Gauss-Legendre で積分して 8 倍する.
+            ! D2h 対称性 (x, y, z の各面について鏡映対称) を仮定している.
             implicit none
             class(surface_shape), intent(in) :: this
             integer, intent(in) :: what
@@ -322,6 +381,11 @@ module shape_mod
 
         subroutine gauss_legendre(n, x, w)
             ! Gauss-Legendre nodes and weights on [-1, 1] (Newton iteration on P_n)
+            ! 【目的】[-1, 1] 上の n 点 Gauss-Legendre 則の節点 x と重み w.
+            ! 【式】P_n(z) = 0 をニュートン法で解く (初期値 cos(pi (i - 1/4) / (n + 1/2))).
+            !   漸化式 k P_k = (2k - 1) z P_{k-1} - (k - 1) P_{k-2}
+            !   微分   P_n' = n (z P_n - P_{n-1}) / (z^2 - 1),  重み w = 2 / ((1 - z^2) P_n'^2)
+            ! 節点は 0 について対称なので半分だけ計算し, 残りは鏡映で埋める.
             implicit none
             integer, intent(in) :: n
             real(dp), intent(out) :: x(n), w(n)

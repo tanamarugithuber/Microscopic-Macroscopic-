@@ -10,6 +10,8 @@ program test_ho_basis
     ! build:
     !   gfortran -O2 -fopenmp constant_mod.f90 ho_basis_mod.f90 test_ho_basis.f90 -llapack -o test_ho_basis.exe
     !---------------------------
+    ! 【日本語】ho_basis_mod のテスト: 基底の正規直交性, 調和振動子のエネルギーの再現,
+    ! 球形 Woods-Saxon + スピン軌道での (2j+1) 重縮退, 部分積分版スピン軌道行列の一致.
     use iso_fortran_env, only: real64
     use constant_mod, only: pi
     use ho_basis_mod

@@ -82,6 +82,12 @@ module frldm_mod
         logical :: verbose = .true.    ! print the terms in calculate_frldm_energy
         real(dp) :: E_frldm            ! MeV, macroscopic contribution to the mass excess
         ! terms of Eq. (62), MeV
+        ! 式 (62) の各項 [MeV]:
+        !   E_mass : M_H Z + M_n N (水素原子と中性子の質量超過の和)
+        !   E_v    : 体積エネルギー        E_s   : 表面エネルギー      E_a0 : A^0 項
+        !   E_c    : クーロンエネルギー    E_cex : クーロン交換項      E_pff: 陽子形状因子補正
+        !   E_ca   : 電荷非対称項          E_W   : Wigner 項           E_pair: 平均対エネルギー
+        !   E_el   : 電子の束縛エネルギー
         real(dp) :: E_mass = 0.0_dp, E_v = 0.0_dp, E_s = 0.0_dp, E_a0 = 0.0_dp, E_c = 0.0_dp
         real(dp) :: E_cex = 0.0_dp, E_pff = 0.0_dp, E_ca = 0.0_dp, E_W = 0.0_dp, E_pair = 0.0_dp, E_el = 0.0_dp
 
@@ -259,6 +265,12 @@ module frldm_mod
             !   B_3 kernel: 1/r - (1 + r/(2a)) exp(-r/a)/r = 1/r - exp(-r/a)/r - exp(-r/a)/(2a)
             ! Both parts of each kernel use the same cell-averaged quadrature, so their large
             ! cancellation (the kernels integrate to zero in the bulk) is not spoiled.
+            ! 【日本語】格子 + Hockney 法による B_1, B_3 (use_grid のときの検算用).
+            !   B_1 = A^(-2/3) / (8 pi^2 r0^2 a^4) int int (2 - sigma/a) e^(-sigma/a) / (sigma/a)   (式 71)
+            !   B_3 = 15 A^(-5/3) / (32 pi^2 r0^5) int int [1 - (1 + sigma/(2 a_den)) e^(-sigma/a_den)] / sigma
+            !                                                                                     (式 72)
+            !   sigma = |r - r'|, 積分は核の内部 (density_index3D = 1) について d^3r d^3r'.
+            ! B1_sum, B3_sum が二重積分, denominator1, denominator3 がその前の係数.
             allocate(W_1(g_mod%n_x_points, g_mod%n_y_points, g_mod%n_z_points))
             allocate(W_3(g_mod%n_x_points, g_mod%n_y_points, g_mod%n_z_points))
             call hockney_yukawa(g_mod%density_index3D, g_mod%h_x, a_Yukawa, this%B_1pot_y3d)
@@ -298,6 +310,23 @@ module frldm_mod
             ! instead (Hockney convolution, calculate_b_1_b_3), which is slower and has an O(h)
             ! surface error in B_1. B_s from the same shape (Eq. 70). B_W = 1 (single-body shapes).
             !----------------------------
+            ! 【日本語での説明】
+            ! 【目的】形状 shape での FRLDM 巨視的エネルギー (質量超過) E_frldm [MeV] を計算する.
+            ! 【物理量】
+            !   I_n    : 相対中性子過剰 I = (N - Z)/A                                    (式 69)
+            !   c_1    : クーロンエネルギー定数 3 e^2 / (5 r0)                           (式 66)
+            !   c_4    : クーロン交換定数 5/4 (3 / 2 pi)^(2/3) c_1                        (式 66)
+            !   k_f    : フェルミ波数 (9 pi Z / 4A)^(1/3) / r0 [1/fm]                     (式 68)
+            !   f_kfrp : 陽子形状因子補正の関数 f(k_F r_p) [MeV]                         (式 67)
+            !   B_s    : 相対表面積 (球で 1)                                              (式 70)
+            !   B_1    : 有限レンジの相対表面エネルギー (球で式 74 の B_1^(0))           (式 71)
+            !   B_3    : 拡散した表面をもつ相対クーロンエネルギー                        (式 72)
+            !   B_w    : A^0 項・Wigner 項の形状因子 (一体の形状では 1)                  (式 75)
+            !   delta_n_ave, delta_p_ave : 平均の中性子・陽子対ギャップ r_mac B_s / N^(1/3) など (式 63, 64)
+            !   delta_pn_ave : 平均の中性子-陽子相互作用エネルギー h / (B_s A^(2/3))   (式 65)
+            ! 【平均対エネルギー】偶偶核 0, 奇中性子 delta_n, 奇陽子 delta_p,
+            !   奇奇核 delta_n + delta_p - delta_pn
+            ! B_1, B_3 は既定で二重表面積分 (calculate_b_1_b_3_surface), g_mod があれば格子で計算する.
             implicit none
             class(frldm_variables), intent(inout) :: this
             type(nucleus_property), intent(in) :: nucleus
@@ -310,7 +339,7 @@ module frldm_mod
             N = real(nucleus%N, dp)
             A = real(nucleus%A, dp)
             this%I_n = (N - Z) / A
-            this%c_1 = 0.6_dp * e2 / nucleus%R0                                       ! Eq. (65)
+            this%c_1 = 0.6_dp * e2 / nucleus%R0                                       ! Eq. (66)
             this%c_4 = 1.25_dp * (1.5_dp / pi)**(2.0_dp / 3.0_dp) * this%c_1         ! Eq. (66)
             this%k_f = (9.0_dp * pi * Z / (4.0_dp * A))**(1.0_dp / 3.0_dp) / nucleus%R0  ! Eq. (68)
             this%f_kfrp = -0.125_dp * r_p**2 * e2 / nucleus%R0**3 &                    ! Eq. (67)
@@ -354,6 +383,8 @@ module frldm_mod
             this%E_frldm = E_frldm
 
             ! spherical reference values, Eq. (74)
+            ! x_0 = r0 A^(1/3) / a,  y_0 = r0 A^(1/3) / a_den  (式 73) から球の B_1^(0), B_3^(0) (式 74).
+            ! verbose のとき計算値と比べて表示するだけで, エネルギーには使わない.
             x_0 = nucleus%R0 * A**(1.0_dp / 3.0_dp) / a_Yukawa
             y_0 = nucleus%R0 * A**(1.0_dp / 3.0_dp) / a_den
             B1_0 = 1.0_dp - 3.0_dp / x_0**2 + (1.0_dp + x_0) * (2.0_dp + 3.0_dp / x_0 + 3.0_dp / x_0**2) &
@@ -386,6 +417,18 @@ module frldm_mod
             ! ~ n^-3, which is removed by Richardson extrapolation from n and 3n/2 points.
             ! Sphere, A = 208: B_1 error 3e-5, B_3 error < 1e-9 for n_quad = 64.
             !----------------------------
+            ! 【日本語での説明】
+            ! 【目的】鋭い表面の形状について B_1 (式 71), B_3 (式 72) を
+            ! 二重表面積分で計算する (既定の方法).
+            ! 【式】核関数 f(sigma) に対して Laplacian g = f となる g を使うと,
+            ! ガウスの定理を 2 回使って
+            !   int_V int_V f(|r - r'|) d^3r d^3r' = - oint oint (dS . dS') g(|r - r'|)
+            !   s = sigma / a として
+            !     B_1 : f = (2 - s) e^-s / s,                 g = -a^2 e^-s
+            !     B_3 : f = 1/sigma - (1 + s/2) e^-s / sigma, g = a [s/2 - e^-s/2 + 2 (1 - e^-s)/s]
+            !   したがって B_1 = a^2 S1 / (8 pi^2 r0^2 a^4 A^(2/3)),  B_3 = -a_den S3 15 / (32 pi^2 r0^5 A^(5/3)).
+            ! 【精度】B_1 の被積分関数は sigma = 0 でとがっているので誤差 ~ n^-3. 節点数 n と 3n/2 の
+            ! 結果から Richardson 外挿でこの誤差を消す.
             implicit none
             class(frldm_variables), intent(inout) :: this
             type(nucleus_property), intent(in) :: nucleus
@@ -409,6 +452,11 @@ module frldm_mod
 
         subroutine surface_sums(shape, nu, S1, S3)
             ! S1 = oint oint dS.dS' e^-s (a = a_Yukawa), S3 = oint oint dS.dS' G(s) (a = a_den)
+            ! 【目的】S1 = oint oint dS . dS' e^-s  (s = sigma / a_Yukawa),
+            !         S3 = oint oint dS . dS' G(s)   (s = sigma / a_den, G は上の g / a_den)
+            ! u (theta) 方向は nu 点 Gauss-Legendre, v (phi) 方向は 2 nu 点の台形則.
+            ! 外側の点 p は x, y, z >= 0 の 1/8 領域だけを回して 8 倍する (D2h 対称性).
+            ! s が小さいとき G は 3/2 + s^2/12 で展開して桁落ちを避ける.
             class(surface_shape), intent(in) :: shape
             integer, intent(in) :: nu
             real(dp), intent(out) :: S1, S3

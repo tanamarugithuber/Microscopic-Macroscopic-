@@ -8,6 +8,8 @@ program test_potential_gh
     !   4. 208Pb (spherical, FRDM2012 constants) in the HO basis: N=126 and Z=82 gaps and the
     !      spherical (2j+1) degeneracies (spin-orbit term by integration by parts)
     !---------------------------
+    ! 【日本語】potential_gh_mod のテスト: 球と楕円体での解析解との比較, 1/8 領域からの
+    ! 埋め戻し, 208Pb の準位の縮退と N = 126, Z = 82 の殻ギャップ.
     use iso_fortran_env, only: real64
     use constant_mod, only: pi, e2
     use potential_gh_mod

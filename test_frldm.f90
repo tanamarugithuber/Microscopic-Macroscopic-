@@ -13,6 +13,8 @@ program test_frldm
     !   gfortran -O2 -fopenmp -I/usr/include constant_mod.f90 nucleus_mod.f90 shape_mod.f90 grid_mod.f90 \
     !       calculate_potential_hockney.f90 frldm_mod.f90 test_frldm.f90 -lfftw3 -o test_frldm.exe
     !---------------------------
+    ! 【日本語】frldm_mod のテスト: 球の B_1, B_3 を解析式 (74) と比較, 変形核の B_3 を
+    ! 表面積分と格子で比較, 208Pb, 132Sn, 40Ca の巨視的質量超過を FRDM2012 と比較する.
     use iso_fortran_env, only: real64
     use constant_mod, only: pi
     use nucleus_mod, only: nucleus_property

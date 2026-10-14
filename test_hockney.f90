@@ -10,6 +10,8 @@ program test_hockney
     ! The box is cut tight (charge reaches the edge at ~1e-4) to show that the
     ! boundary does not matter.
     !---------------------------
+    ! 【日本語】hockney_mod のテスト: ガウス型電荷のクーロン・湯川ポテンシャルの解析解,
+    ! 一様な立方体の中心でのクーロンポテンシャル (2.3800773 L^2) と比べる.
     use iso_fortran_env, only: real64
     use constant_mod, only: pi
     use hockney_mod
