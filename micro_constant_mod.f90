@@ -52,6 +52,15 @@ module micro_constant_mod
     !---------------------------
     ! Quantities of the FRDM2012 single-particle potential, Eqs. (82)-(93)
     !---------------------------
+    ! 【日本語】一粒子ポテンシャル (FRDM2012 式 80-93) を決める量
+    !   delta_ave   : 平均の体積非対称度 delta-bar (液滴模型, 式 86)
+    !   epsilon_ave : 核内部の密度の平均相対ずれ epsilon-bar (式 87)
+    !   R_den       : 密度分布の半径 r0 A^(1/3) (1 + epsilon-bar) [fm]           (式 83)
+    !   R_pot       : ポテンシャルの半径 R_den + A_den - B_den / R_den [fm]     (式 82)
+    !   e_rho_c     : e x 電荷密度 = Z e^2 / (4/3 pi R_pot^3) [MeV/fm^2]        (式 92)
+    !   hbar_omega0 : 振動子基底の hbar omega0 = C_cur / A^(1/3) [MeV]            (式 93)
+    !   lambda_p, lambda_n : スピン軌道の強さ k A + l (無次元)                    (式 89, 90)
+    !   V_p, V_n    : 陽子・中性子ポテンシャルの深さ V_s +- V_a delta-bar [MeV] (式 84, 85)
     type :: microscopic_variables
         real(dp) :: delta_ave      ! average bulk asymmetry, Eq. (86)
         real(dp) :: epsilon_ave    ! average relative deviation of the bulk density, Eq. (87)
@@ -75,6 +84,12 @@ module micro_constant_mod
             ! Droplet-model delta_ave and epsilon_ave (Eqs. 86, 87; numerically Eqs. 119, 120)
             ! and the radius, depths and spin-orbit strengths of the single-particle potential.
             !---------------------------
+            ! 【日本語】
+            ! 【目的】Z, N から一粒子ポテンシャルのパラメータ (上の型の各成分) を計算する.
+            ! 【式】c1 = 3 e^2 / (5 r0) として
+            !   delta-bar   = [I + 3/8 c1/Q Z^2/A^(5/3)] / [1 + 9/4 J/Q A^(-1/3)]
+            !   epsilon-bar = [-2 a_2 A^(-1/3) + L delta-bar^2 + c1 Z^2/A^(4/3)] / K
+            !   (J, L, Q, K, a_2 は液滴模型の定数 mi_J, mi_L, mi_Q, mi_K, a_2)
             implicit none
             class(microscopic_variables), intent(inout) :: this
             type(nucleus_property), intent(in) :: nucleus

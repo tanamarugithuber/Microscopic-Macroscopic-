@@ -24,6 +24,9 @@ module grid_mod
         !---------------------------
         ! Nuclear shape: epsilon parameterization (eps2, gamma, eps4, eps6) of shape_mod
         !---------------------------
+        ! shape : 格子の内外判定に使う核の形状 (shape_mod の epsilon 形状, 半径 R_a)
+        ! semi  : 形状の各軸方向の最大の広がり [fm] (箱の大きさを決める)
+        ! n_sub : 表面にかかるセルを n_sub^3 個の小点に分けて, 内側の割合を密度とする
         type(epsilon_shape) :: shape
         real(dp) :: semi(3) ! fm, largest extent of the shape along x, y, z (semi-axes for an ellipsoid)
         integer :: n_sub = 6 ! cells cut by the surface get the fraction of n_sub**3 sub-points inside
@@ -94,6 +97,9 @@ module grid_mod
             ! Same convention as ho_basis_mod and potential_gh_mod.
             ! gamma = 0: axially symmetric about z (eps > 0 prolate, eps < 0 oblate). gamma in radian.
             !---------------------------
+            ! 【目的】(eps, gamma) から三軸楕円体の半軸 R_x, R_y, R_z [fm] を求める.
+            ! 【式】R_k = R (f_x f_y f_z)^(1/3) / f_k,  f_k = 1 - 2/3 eps cos(gamma + 2 pi k/3)
+            ! (shape_mod の ellipsoid_from_eps_gamma と同じ)
             implicit none
             real(dp), intent(in) :: R, eps, gamma
             real(dp) :: semi(3)
@@ -113,6 +119,10 @@ module grid_mod
             !   box  = n_times * nucleus size
             ! cubic = .true. uses the longest extent on all three axes.
             !---------------------------
+            ! 【日本語】
+            ! 【目的】核の変形 (eps2, gamma, eps4, eps6) から計算箱と格子点数を決める.
+            ! 【手順】epsilon 形状を作り, 各軸の広がり R_i から nu_i = ceiling(R_i / h_i) を求める.
+            ! 箱は核の n_times 倍 (n_i = nu_i n_times) とし, dV = h_x h_y h_z を設定する.
             implicit none
             class(grid_type), intent(inout) :: this
             type(nucleus_property), intent(in) :: nucleus
@@ -232,6 +242,10 @@ module grid_mod
             ! 1 or 0 if the centre and the 8 corners agree, otherwise the fraction of
             ! n_sub**3 sub-points inside. sum(index) * dV then reproduces the volume closely.
             !---------------------------
+            ! 【日本語】
+            ! 【目的】中心 (x, y, z) [fm] のセルのうち核の内側にある体積の割合 (0-1) を返す.
+            ! 中心と 8 隅がすべて内側 (外側) なら 1 (0). 表面にかかるセルだけ n_sub^3 点で数える.
+            ! この割合を密度 (density_index3D) として使うと, sum(index) dV が体積をよく再現する.
             implicit none
             class(grid_type), intent(in) :: this
             real(dp), intent(in) :: x, y, z

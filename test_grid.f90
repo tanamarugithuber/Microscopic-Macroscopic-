@@ -5,6 +5,8 @@ program test_grid
     !   2. box extents (cubic and per-axis) cover the nucleus
     !   3. number of inside points * dV reproduces the nuclear volume
     !---------------------------
+    ! 【日本語】grid_mod のテスト: 半軸の体積保存と対称性, 箱が核を覆うこと,
+    ! (内側の割合の和) x dV が核の体積を再現すること.
     use iso_fortran_env, only: real64
     use constant_mod, only: pi
     use nucleus_mod

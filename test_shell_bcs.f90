@@ -14,6 +14,8 @@ program test_shell_bcs
     !   gfortran -O2 -fopenmp constant_mod.f90 nucleus_mod.f90 shape_mod.f90 micro_constant_mod.f90 \
     !       ho_basis_mod.f90 potential_gh_mod.f90 shell_bcs_mod.f90 test_shell_bcs.f90 -llapack -o test_shell_bcs.exe
     !---------------------------
+    ! 【日本語】shell_bcs_mod のテスト: 球形振動子スペクトルでの Strutinsky 補正 (プラトー条件と
+    ! Thomas-Fermi 値), 等間隔準位での BCS/LN 対補正, 208Pb と 240Pu の E_s+p を FRDM2012 と比較.
     use iso_fortran_env, only: real64
     use nucleus_mod, only: nucleus_property
     use micro_constant_mod, only: microscopic_variables
