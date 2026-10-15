@@ -4,6 +4,14 @@
 
 このプロジェクトは、原子核物理学におけるFRLDM+Shell+BCSを解くためのプログラム群です．
 
+## オブジェクト指向プログラミングに慣れていない人向け
+
+このコードは Fortran のオブジェクト指向の書き方（派生型，型束縛手続き `call frldm%calculate_frldm_energy(...)` など）を使っています．慣れていない人は，先に解説書を読んでください．
+
+- [Fortran で学ぶオブジェクト指向プログラミング（PDF）](docs/fortran_oop_guide.pdf)
+
+モジュールとカプセル化，派生型と型束縛手続き，継承，多態性（`class`，`select type`），抽象型と `deferred`，演算子の多重定義を，すぐに動かせる短い例で説明しています．液滴模型項・殻補正・対相関を抽象型で部品化する例（簡略化したトイモデル）や，複数ファイルのコンパイル順，よくある落とし穴もまとめています．
+
 ## 使い方 (main.f90)
 
 main は 1 つの原子核について，FRLDM の巨視的エネルギーと，Strutinsky 法のシェル補正 + Lipkin–Nogami（または BCS）の対補正を計算し，質量超過と結合エネルギーを出力します．
@@ -248,3 +256,4 @@ gfortran -O2 -fopenmp constant_mod.f90 nucleus_mod.f90 shape_mod.f90 micro_const
 * 2026/4/21: [README.md を作成]
 * 2026/5/14: [依存関係を明記]
 * 2026/10/12: [main を FRLDM+Shell+LN に対応，ε4, ε6 の形，B_1, B_3 の表面積分，Lipkin–Nogami，スピン軌道項の部分積分]
+* 2026/10/15: [Fortran のオブジェクト指向プログラミングの解説書 (docs/fortran_oop_guide.pdf) を追加]
