@@ -103,13 +103,13 @@ module shell_bcs_mod
         subroutine shell_bcs_calculation(nucleus, mv, res, n_gh, pairing)
             !---------------------------
             ! shell + pairing correction of the nucleus at the deformation
-            ! (nucleus%epsilon2, nucleus%gamma_deg, nucleus%epsilon4, nucleus%epsilon6).
+            ! (nucleus%epsilon2, nucleus%gamma_deg, nucleus%epsilon3, nucleus%epsilon4, nucleus%epsilon6).
             ! mv receives the potential quantities (micro_constant_mod).
             ! n_gh   : Gauss-Hermite points per axis (default 44)
             ! pairing: 'LN' (Lipkin-Nogami, default, as FRDM2012) or 'BCS'
             !---------------------------
             ! 【日本語】
-            ! 【目的】変形 (eps2, gamma, eps4, eps6) での殻補正と対補正を中性子・陽子それぞれ計算する.
+            ! 【目的】変形 (eps2, gamma, eps3, eps4, eps6) での殻補正と対補正を中性子・陽子それぞれ計算する.
             ! 【手順】
             !   1. calculate_microscopic_variables で R_pot, V_p, V_n, lambda_p, lambda_n などを求める.
             !   2. 振動子基底を作り, 半径 R_pot の epsilon 形状で Y, C を Gauss-Hermite 点上に求める.
@@ -149,13 +149,14 @@ module shell_bcs_mod
             !---------------------------
             call basis%initialize(frequencies_from_eps_gamma(mv%hbar_omega0, eps, gam), nint(N_bas), ngh)
             ns = basis%n_states
-            shape = epsilon_shape_from(mv%R_pot, eps, gam, nucleus%epsilon4, nucleus%epsilon6)
+            shape = epsilon_shape_from(mv%R_pot, eps, gam, nucleus%epsilon3, nucleus%epsilon4, nucleus%epsilon6)
             call q%initialize(shape, a_pot, 8, 16, 8)
             xg = basis%b(1) * basis%xi
             yg = basis%b(2) * basis%xi
             zg = basis%b(3) * basis%xi
             allocate(Y(ngh, ngh, ngh), dYx(ngh, ngh, ngh), dYy(ngh, ngh, ngh), dYz(ngh, ngh, ngh), C(ngh, ngh, ngh))
-            call q%on_grid(xg, yg, zg, Y, dYx, dYy, dYz, C, .false.)
+            ! the octant filling needs the z reflection, which eps3 /= 0 breaks
+            call q%on_grid(xg, yg, zg, Y, dYx, dYy, dYz, C, nucleus%epsilon3 == 0.0_dp)
 
             !---------------------------
             ! single-particle spectra
