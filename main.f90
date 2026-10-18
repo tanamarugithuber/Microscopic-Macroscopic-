@@ -9,7 +9,8 @@ program main
     !                       correction (shell_bcs_mod)
     !   binding energy B = Z M_H + N M_n - M_th
     !
-    ! The shape is the FRDM epsilon parametrisation (eps2, gamma, eps4, eps6), Eqs. (17)-(25).
+    ! The shape is the FRDM epsilon parametrisation (eps2, gamma, eps3, eps4, eps6), Eqs. (17)-(25);
+    ! eps1 follows from eps3 by the centre-of-mass condition (shape_mod).
     ! With search = .true. the potential energy E_mac + E_shell + E_pair is minimised on a
     ! grid in (eps2, eps4) (axial, eps6 = 0 unless given), and the minimum is reported.
     ! The zero-point energy (FRDM2012 Sec. 2.11) is not included.
@@ -17,7 +18,7 @@ program main
     ! Input: namelist &frldm_input in the file given as the first argument (default
     ! input.nml); without the file the defaults below (208Pb, spherical) are used.
     !   Z, N                 : proton and neutron numbers
-    !   eps2, gamma_deg, eps4, eps6 : deformation (gamma in degree)
+    !   eps2, gamma_deg, eps3, eps4, eps6 : deformation (gamma in degree)
     !   pairing              : 'LN' (default) or 'BCS'
     !   n_gh                 : Gauss-Hermite points per axis of the single-particle problem
     !   use_grid, h, n_times : B_1, B_3 from the grid + Hockney method instead of the surface
@@ -48,7 +49,7 @@ program main
 
     ! 入力変数 (namelist &frldm_input) と既定値 (208Pb, 球形):
     !   Z, N        : 陽子数, 中性子数
-    !   eps2, gamma_deg, eps4, eps6 : 変形 (gamma は度)
+    !   eps2, gamma_deg, eps3, eps4, eps6 : 変形 (gamma は度). eps1 は eps3 から重心条件で決まる
     !   pairing     : 'LN' (Lipkin-Nogami, 既定) または 'BCS'
     !   n_gh        : 一粒子問題の Gauss-Hermite 点数 (1 軸あたり)
     !   use_grid, h, n_times : B_1, B_3 を格子 + Hockney 法で求める (検算用;
@@ -94,7 +95,7 @@ program main
         e_best = huge(1.0_dp)
         do i2 = 0, n2
             do i4 = 0, n4
-                call calculate(eps2_min + i2 * d_eps2, gamma_deg, eps4_min + i4 * d_eps4, eps6, .false., e_pot)
+                call calculate(eps2_min + i2 * d_eps2, gamma_deg, eps3, eps4_min + i4 * d_eps4, eps6, .false., e_pot)
                 print '(2f9.3, 3f11.4)', eps2_min + i2 * d_eps2, eps4_min + i4 * d_eps4, frldm%E_frldm, &
                       res%e_micro, e_pot
                 if (e_pot < e_best) then
@@ -115,7 +116,7 @@ contains
     subroutine calculate(e2_, gam_, e3_, e4_, e6_, verbose, e_pot)
         ! FRLDM + shell + pairing at one deformation; e_pot = M_th (mass excess, MeV)
         ! 【日本語】
-        ! 【目的】1 つの変形 (e2_, gam_ [度], e4_, e6_) で M_th を計算し, e_pot に返す.
+        ! 【目的】1 つの変形 (e2_, gam_ [度], e3_, e4_, e6_) で M_th を計算し, e_pot に返す.
         ! verbose = .true. なら各項を表示する.
         ! 【手順】1. nucleus に Z, N と変形を入れ, 半径 R_a の epsilon 形状を作る.
         !         2. frldm_mod で E_mac (use_grid なら格子を用意して B_1, B_3 を格子で計算).
@@ -140,6 +141,7 @@ contains
         nucleus%epsilon6 = e6_
         call nucleus%calculate_fundamental_properties()
         shape = epsilon_shape_from(nucleus%R_a, e2_, gam_ * pi / 180.0_dp, e3_, e4_, e6_)
+        eps1 = shape%eps1
 
         ! macroscopic part
         frldm%verbose = .false.
@@ -167,7 +169,8 @@ contains
 
         print *
         print '(a, i4, a, i4, a, i4)', " ===== Z = ", Z, "  N = ", N, "  A = ", Z + N
-        print '(a, 4f9.4)', " eps2, gamma [deg], eps3, eps4, eps6        : ", e2_, gam_, e3_, e4_, e6_
+        print '(a, 5f9.4)', " eps2, gamma [deg], eps3, eps4, eps6  : ", e2_, gam_, e3_, e4_, e6_
+        print '(a, f12.8)', " eps1 (centre of mass at the origin) : ", eps1
         print '(a, 3f10.6)', " B_s, B_1, B_3                        : ", frldm%B_s, frldm%B_1, frldm%B_3
         print '(a, 2f10.4)', " R_pot [fm], Strutinsky range [MeV]   : ", mv%R_pot, res%gamma_S
         print '(a)', " --- macroscopic energy (FRLDM, Eq. 62) [MeV]"

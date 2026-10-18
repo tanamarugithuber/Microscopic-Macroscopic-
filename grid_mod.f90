@@ -130,7 +130,7 @@ module grid_mod
 
             print *, "Initializing grid based on the nucleus properties..."
             this%shape = epsilon_shape_from(nucleus%R_a, nucleus%epsilon2, nucleus%gamma_deg * pi / 180.0_dp, &
-                                            nucleus%epsilon4, nucleus%epsilon6)
+                                            nucleus%epsilon3, nucleus%epsilon4, nucleus%epsilon6)
             this%semi = this%shape%extent()
 
             ! Calculate grid boundaries based on the nucleus size

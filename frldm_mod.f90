@@ -412,7 +412,8 @@ module frldm_mod
             !   B_1: f = (2 - s) e^-s / s,               g = - a^2 e^-s
             !   B_3: f = 1/sigma - (1 + s/2) e^-s/sigma, g = a [s/2 - e^-s/2 + 2 (1 - e^-s)/s]
             ! Quadrature: Gauss-Legendre in u (theta), trapezoid in v (phi); the outer point
-            ! runs over one octant only (all shapes here have D2h symmetry). The B_3 integrand
+            ! runs over the quarter x, y >= 0 only (all shapes here are reflection symmetric in
+            ! x and y; eps3 breaks the z reflection). The B_3 integrand
             ! is smooth (g = 3a/2 + O(s^2)); the |sigma| cusp of e^-s makes the B_1 error
             ! ~ n^-3, which is removed by Richardson extrapolation from n and 3n/2 points.
             ! Sphere, A = 208: B_1 error 3e-5, B_3 error < 1e-9 for n_quad = 64.
@@ -455,7 +456,8 @@ module frldm_mod
             ! 【目的】S1 = oint oint dS . dS' e^-s  (s = sigma / a_Yukawa),
             !         S3 = oint oint dS . dS' G(s)   (s = sigma / a_den, G は上の g / a_den)
             ! u (theta) 方向は nu 点 Gauss-Legendre, v (phi) 方向は 2 nu 点の台形則.
-            ! 外側の点 p は x, y, z >= 0 の 1/8 領域だけを回して 8 倍する (D2h 対称性).
+            ! 外側の点 p は x, y >= 0 の 1/4 領域だけを回して 4 倍する (x, y の鏡映対称性.
+            ! eps3 /= 0 では z の鏡映対称性がないので, z 方向は全部回す).
             ! s が小さいとき G は 3/2 + s^2/12 で展開して桁落ちを避ける.
             class(surface_shape), intent(in) :: shape
             integer, intent(in) :: nu
@@ -481,7 +483,7 @@ module frldm_mod
             !$omp parallel do default(none) shared(x, dS, m) private(q, sig, d, s) &
             !$omp reduction(+:S1, S3) schedule(dynamic)
             do p = 1, m
-                if (any(x(:, p) < 0.0_dp)) cycle
+                if (any(x(1:2, p) < 0.0_dp)) cycle
                 do q = 1, m
                     sig = norm2(x(:, p) - x(:, q))
                     d = dot_product(dS(:, p), dS(:, q))
@@ -495,8 +497,8 @@ module frldm_mod
                 end do
             end do
             !$omp end parallel do
-            S1 = 8.0_dp * S1
-            S3 = 8.0_dp * S3
+            S1 = 4.0_dp * S1
+            S3 = 4.0_dp * S3
         end subroutine surface_sums
 
 end module frldm_mod
