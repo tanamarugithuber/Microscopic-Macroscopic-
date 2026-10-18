@@ -3,17 +3,21 @@ program main
     ! FRLDM + Shell + pairing (FRDM2012 macroscopic-microscopic model, finite-range
     ! liquid-drop macroscopic part) for one nucleus.
     !
-    !   M_th = E_mac(Z, N, shape) + E_shell + E_pair
+    !   M_th = E_mac(Z, N, shape) + E_shell + E_pair + E_zp
     !     E_mac           : FRLDM, Eq. (62), as a mass excess (frldm_mod)
     !     E_shell, E_pair : Strutinsky shell correction and Lipkin-Nogami (or BCS) pairing
     !                       correction (shell_bcs_mod)
+    !     E_zp            : zero-point energy of the eps2 and gamma vibrations, Sec. 2.11
+    !                       (zero_point_mod; only with zpe = .true.)
     !   binding energy B = Z M_H + N M_n - M_th
     !
     ! The shape is the FRDM epsilon parametrisation (eps2, gamma, eps3, eps4, eps6), Eqs. (17)-(25);
     ! eps1 follows from eps3 by the centre-of-mass condition (shape_mod).
     ! With search = .true. the potential energy E_mac + E_shell + E_pair is minimised on a
     ! grid in (eps2, eps4) (axial, eps6 = 0 unless given), and the minimum is reported.
-    ! The zero-point energy (FRDM2012 Sec. 2.11) is not included.
+    ! With zpe = .true. (default) the zero-point energy is added at the final shape: E_pot is
+    ! computed at eps2 +- 0.05, 0.10, 0.15 (and gamma +- 5, 10, 15 deg when eps2 >= 0.17) and the
+    ! stiffness C is fitted by a least-squares parabola. For eps2 < 0.17, E_0,gamma = E_0,eps2.
     !
     ! Input: namelist &frldm_input in the file given as the first argument (default
     ! input.nml); without the file the defaults below (208Pb, spherical) are used.
@@ -25,25 +29,29 @@ program main
     !                          integrals (cross-check; grid spacing h fm, box n_times x nucleus)
     !   search               : ground-state search on the (eps2, eps4) grid
     !   eps2_min, eps2_max, d_eps2, eps4_min, eps4_max, d_eps4 : search grid
+    !   zpe                  : add the zero-point energy (6 or 12 more shapes)
     !---------------------------
     ! 【日本語での説明】
     ! 1 つの原子核について FRLDM + 殻補正 + 対補正の質量を計算する.
-    !   M_th = E_mac(Z, N, 形状) + E_shell + E_pair   (質量超過 [MeV])
+    !   M_th = E_mac(Z, N, 形状) + E_shell + E_pair + E_zp   (質量超過 [MeV])
     !   B    = Z M_H + N M_n - M_th                    (結合エネルギー [MeV])
     !   E_mac : frldm_mod (FRDM2012 式 62),  E_shell, E_pair : shell_bcs_mod
     ! 入力は namelist &frldm_input (第 1 引数のファイル, 既定 input.nml).
     ! search = .true. なら (eps2, eps4) の格子上で E_mac + E_shell + E_pair が最小の形状を探し,
-    ! その形状で詳しい結果を出力する. 零点エネルギー (2.11 節) はまだ含まない.
+    ! その形状で詳しい結果を出力する.
+    ! zpe = .true. (既定) なら, 最後の形状で零点エネルギー E_zp (2.11 節, zero_point_mod) を足す.
+    !   eps2 +- 0.05, 0.10, 0.15 (eps2 >= 0.17 なら gamma +- 5, 10, 15 度も) で E_pot を計算し,
+    !   7 点の最小二乗放物線からかたさ C を求める. eps2 < 0.17 では E_0,gamma = E_0,eps2.
     !$ use omp_lib
     use iso_fortran_env, only: real64
-    use constant_mod, only: pi, hbar_c
+    use constant_mod, only: pi
     use nucleus_mod, only: nucleus_property
     use grid_mod, only: grid_type
     use shape_mod, only: epsilon_shape, epsilon_shape_from
     use frldm_mod, only: frldm_variables, M_H, M_n
     use micro_constant_mod, only: microscopic_variables
     use shell_bcs_mod, only: shell_bcs_result, shell_bcs_calculation, nucleon_correction
-    use zero_point_mod, only: zero_point, zero_eps2, zero_gamma
+    use zero_point_mod, only: zero_eps2, zero_gamma
 
     implicit none
     integer, parameter :: dp = real64
@@ -57,15 +65,16 @@ program main
     !                          格子間隔 h [fm], 箱は核の n_times 倍)
     !   search      : 基底状態探索をするか
     !   eps2_min, eps2_max, d_eps2, eps4_min, eps4_max, d_eps4 : 探索する格子
+    !   zpe         : 零点エネルギーを足すか (形状を 6 点または 12 点余分に計算する)
     integer :: Z = 82, N = 126, n_gh = 44, n_times = 3
     real(dp) :: eps2 = 0.0_dp, gamma_deg = 0.0_dp, eps4 = 0.0_dp, eps6 = 0.0_dp, h = 0.5_dp
     real(dp) :: eps1 = 0.0_dp, eps3 = 0.0_dp
     character(8) :: pairing = 'LN'
-    logical :: use_grid = .false., search = .false.
+    logical :: use_grid = .false., search = .false., zpe = .true.
     real(dp) :: eps2_min = 0.0_dp, eps2_max = 0.30_dp, d_eps2 = 0.05_dp
     real(dp) :: eps4_min = -0.08_dp, eps4_max = 0.08_dp, d_eps4 = 0.04_dp
     namelist /frldm_input/ Z, N, eps2, gamma_deg, eps3, eps4, eps6, pairing, n_gh, use_grid, h, n_times, &
-                           search, eps2_min, eps2_max, d_eps2, eps4_min, eps4_max, d_eps4
+                           search, eps2_min, eps2_max, d_eps2, eps4_min, eps4_max, d_eps4, zpe
 
     character(256) :: file_name
     logical :: exists
@@ -111,8 +120,67 @@ program main
     end if
 
     call calculate(eps2, gamma_deg, eps3, eps4, eps6, .true., e_pot)
+    if (zpe) call add_zero_point(e_pot)
 
 contains
+
+    subroutine add_zero_point(e_gs)
+        ! E_zp = E_0,eps2 + E_0,gamma at the shape (eps2, gamma_deg, eps3, eps4, eps6), FRDM2012 Sec. 2.11.
+        ! E_pot at lambda_gs + k h (k = -3..3, h = 0.05 for eps2, 5 deg for gamma), other
+        ! deformations fixed; C from the least-squares parabola (zero_point_mod).
+        ! eps2 < 0.17: E_0,gamma = E_0,eps2 (the gamma curvature is not computed).
+        ! Triaxial ground states (interpolation of the inertia, Sec. 2.11) are not treated.
+        ! 【日本語】
+        ! 【目的】最後の形状で零点エネルギー E_zp を求め, M_th + E_zp を表示する.
+        ! 【手順】1. eps2 を +-0.05, +-0.10, +-0.15 ずらした 6 点で E_pot を計算 (他の変形は固定).
+        !         2. 基底状態の e_gs と合わせた 7 点から zero_eps2 で E_0,eps2.
+        !         3. eps2 >= 0.17 なら gamma を +-5, +-10, +-15 度ずらして同様に E_0,gamma.
+        !            eps2 < 0.17 なら E_0,gamma = E_0,eps2 (FRDM2012 2.11 節).
+        real(dp), intent(in) :: e_gs
+        real(dp), parameter :: h_eps = 0.05_dp, h_gam_deg = 5.0_dp, eps2_gamma_min = 0.17_dp
+        type(nucleus_property) :: nuc
+        type(zero_eps2) :: zp_eps2
+        type(zero_gamma) :: zp_gamma
+        real(dp) :: E7(7), e0_eps2, e0_gamma, E_zp, M_th
+        integer :: k
+
+        nuc%Z = Z
+        nuc%N = N
+        nuc%semi1 = nuc%R0 * (Z + N)**(1.0_dp / 3.0_dp)
+        call nuc%calculate_fundamental_properties()
+
+        E7(4) = e_gs
+        do k = -3, 3
+            if (k /= 0) call calculate(eps2 + k * h_eps, gamma_deg, eps3, eps4, eps6, .false., E7(k + 4))
+        end do
+        call zp_eps2%cal_energy(nuc, eps2, h_eps, E7, e0_eps2)
+        print '(a)', " --- zero-point energy (Sec. 2.11) [MeV]"
+        print '(a, 7f10.4)', "   E_pot(eps2 - 0.15 .. eps2 + 0.15)     : ", E7
+
+        if (eps2 < eps2_gamma_min) then
+            e0_gamma = e0_eps2
+        else
+            do k = -3, 3
+                if (k /= 0) call calculate(eps2, gamma_deg + k * h_gam_deg, eps3, eps4, eps6, .false., E7(k + 4))
+            end do
+            call zp_gamma%cal_energy(nuc, eps2, h_gam_deg * pi / 180.0_dp, E7, e0_gamma)
+            print '(a, 7f10.4)', "   E_pot(gamma - 15 .. gamma + 15 deg)   : ", E7
+        end if
+
+        E_zp = e0_eps2 + e0_gamma
+        M_th = e_gs + E_zp
+        print '(a, f12.4)', "   E_0,eps2              : ", e0_eps2
+        if (eps2 < eps2_gamma_min) then
+            print '(a, f12.4, a)', "   E_0,gamma             : ", e0_gamma, "   (= E_0,eps2, eps2 < 0.17)"
+        else
+            print '(a, f12.4)', "   E_0,gamma             : ", e0_gamma
+        end if
+        print '(a, f12.4)', "   E_zp                  : ", E_zp
+        print '(a)', " --- result with the zero-point energy [MeV]"
+        print '(a, f12.4)', "   mass excess M_th      : ", M_th
+        print '(a, f12.4)', "   binding energy B      : ", M_H * Z + M_n * N - M_th
+        print '(a, f12.4)', "   B / A                 : ", (M_H * Z + M_n * N - M_th) / (Z + N)
+    end subroutine add_zero_point
 
     subroutine calculate(e2_, gam_, e3_, e4_, e6_, verbose, e_pot)
         ! FRLDM + shell + pairing at one deformation; e_pot = M_th (mass excess, MeV)

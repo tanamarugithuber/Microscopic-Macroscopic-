@@ -37,6 +37,7 @@ $FC -c micro_constant_mod.f90
 $FC -c ho_basis_mod.f90
 $FC -c potential_gh_mod.f90
 $FC -c shell_bcs_mod.f90
+$FC -c zero_point_mod.f90
 $FC -c main.f90
 
 $FC \
@@ -50,6 +51,7 @@ $FC \
     ho_basis_mod.o \
     potential_gh_mod.o \
     shell_bcs_mod.o \
+    zero_point_mod.o \
     main.o \
     $LIBS \
     -o main.exe
