@@ -111,7 +111,10 @@ module ho_basis_mod
         end function frequencies_from_eps_gamma
 
         ! 【目的】基底 (量子数の組) と Gauss-Hermite 点上の基底関数を準備する.
-        ! 【打ち切り】hw_x (nx + 1/2) + hw_y (ny + 1/2) + hw_z (nz + 1/2) <= (N_bas + 3/2) hw0
+        ! 【打ち切り】hw_x nx + hw_y ny + hw_z nz <= (N_bas + 1/2) hw0
+        !   (零点エネルギーを除いた振動子エネルギー, FRDM2012 式 93 の上の文).
+        !   球形では N = nx + ny + nz <= N_bas で, 境界に殻が乗らない.
+        !   そのため, 変形を少し入れたときに基底が不連続に変わらない.
         ! 【基底関数】u_n(k) = sqrt(W_k) hhat_n(xi_k),  W_k = w_k exp(xi_k^2)
         !   微分: d/dxi psi_n = sqrt(n/2) psi_{n-1} - sqrt((n+1)/2) psi_{n+1}
         ! n_gh は n_ax_max + 1 より大きくなければならない (行列要素を厳密に積分するため).
@@ -134,10 +137,14 @@ module ho_basis_mod
 
             !---------------------------
             ! basis truncation
-            !   hw_x(nx+1/2) + hw_y(ny+1/2) + hw_z(nz+1/2) <= (N_bas + 3/2) hw0
+            !   hw_x nx + hw_y ny + hw_z nz <= (N_bas + 1/2) hw0   (energy above the zero point)
+            ! For the sphere this is N <= N_bas with half a shell to spare, so no shell sits on
+            ! the boundary. (A cut at (N_bas + 3/2) hw0 including the zero point puts the whole
+            ! N = N_bas shell on the boundary: about half of it drops out as soon as eps /= 0,
+            ! and E_shell jumps by ~0.1 MeV between eps2 = 0 and 0.001 in light nuclei.)
             !---------------------------
-            e_cut = (real(N_bas, dp) + 1.5_dp) * this%hbar_omega0 * (1.0_dp + 1.0e-12_dp)
-            nmax = int((e_cut - 0.5_dp * sum(hbar_omega)) / hbar_omega)
+            e_cut = (real(N_bas, dp) + 0.5_dp) * this%hbar_omega0
+            nmax = int(e_cut / hbar_omega)
 
             if (allocated(this%nq)) deallocate(this%nq)
             if (allocated(this%parity)) deallocate(this%parity)
@@ -205,8 +212,7 @@ module ho_basis_mod
             pure function osc_energy(mx, my, mz) result(e)
                 integer, intent(in) :: mx, my, mz
                 real(dp) :: e
-                e = hbar_omega(1) * (mx + 0.5_dp) + hbar_omega(2) * (my + 0.5_dp) &
-                  + hbar_omega(3) * (mz + 0.5_dp)
+                e = hbar_omega(1) * mx + hbar_omega(2) * my + hbar_omega(3) * mz
             end function osc_energy
         end subroutine initialize_ho_basis
 
