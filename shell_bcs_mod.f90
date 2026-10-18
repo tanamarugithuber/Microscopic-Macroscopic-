@@ -109,7 +109,8 @@ module shell_bcs_mod
             ! pairing: 'LN' (Lipkin-Nogami, default, as FRDM2012) or 'BCS'
             !---------------------------
             ! 【日本語】
-            ! 【目的】変形 (eps2, gamma, eps3, eps4, eps6) での殻補正と対補正を中性子・陽子それぞれ計算する.
+            ! 【目的】変形 (eps2, gamma, eps3, eps4, eps6) での殻補正と対補正を
+            ! 中性子・陽子それぞれ計算する.
             ! 【手順】
             !   1. calculate_microscopic_variables で R_pot, V_p, V_n, lambda_p, lambda_n などを求める.
             !   2. 振動子基底を作り, 半径 R_pot の epsilon 形状で Y, C を Gauss-Hermite 点上に求める.
