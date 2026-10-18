@@ -1,7 +1,7 @@
 module nucleus_mod
     !$ use omp_lib
     use iso_fortran_env, only: real64
-    use constant_mod, only: pi
+    use constant_mod, only: pi, m_nucleon
     implicit none
     private
 
@@ -19,6 +19,7 @@ module nucleus_mod
         integer :: A  ! mass number
         real(dp) :: R0 = 1.16_dp ! fm, radius parameter
         real(dp) :: R_a ! fm, average radius
+        real(dp) :: Mass ! MeV, mass of the nucleus
 
         !---------------------------
         ! Nucleus shape parameters, Z-axis is the symmetry axis
@@ -60,6 +61,8 @@ module nucleus_mod
 
             this%R_a = this%R0 * this%A**(1.0_dp / 3.0_dp)
 
+            this%mass = this%A * m_nucleon  ! MeV, approximate mass of the nucleus
+
             this%volume = (4.0_dp / 3.0_dp) * pi * this%R_a**3
 
             this%semi2 = this%volume / (4.0_dp / 3.0_dp * pi * this%semi1**2)
@@ -85,6 +88,7 @@ module nucleus_mod
             print *, "Z =", this%Z
             print *, "N =", this%N
             print *, "R_a =", this%R_a
+            print *, "Mass =", this%mass
             print *, "Volume =", this%volume
             print *, "Surface Area =", this%surface_area
         end subroutine calculate_fundamental_properties

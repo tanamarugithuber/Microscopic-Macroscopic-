@@ -1,6 +1,6 @@
 &frldm_input
-  Z = 8, N = 10,
-  eps2 = 0.01, gamma_deg = 0.0, eps3 = 0.00, eps4 = -0.04, eps6 = 0.02,
+  Z = 8, N = 9,
+  eps2 = 0.05, gamma_deg = 0.0, eps3 = 0.01, eps4 = -0.12, eps6 = -0.02,
   pairing = 'LN',
   n_gh = 44
 /

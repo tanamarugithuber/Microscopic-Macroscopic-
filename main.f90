@@ -36,13 +36,14 @@ program main
     ! その形状で詳しい結果を出力する. 零点エネルギー (2.11 節) はまだ含まない.
     !$ use omp_lib
     use iso_fortran_env, only: real64
-    use constant_mod, only: pi
+    use constant_mod, only: pi, hbar_c
     use nucleus_mod, only: nucleus_property
     use grid_mod, only: grid_type
     use shape_mod, only: epsilon_shape, epsilon_shape_from
     use frldm_mod, only: frldm_variables, M_H, M_n
     use micro_constant_mod, only: microscopic_variables
     use shell_bcs_mod, only: shell_bcs_result, shell_bcs_calculation, nucleon_correction
+    use zero_point_mod, only: zero_point, zero_eps2, zero_gamma
 
     implicit none
     integer, parameter :: dp = real64
