@@ -155,7 +155,7 @@ module shell_bcs_mod
             yg = basis%b(2) * basis%xi
             zg = basis%b(3) * basis%xi
             allocate(Y(ngh, ngh, ngh), dYx(ngh, ngh, ngh), dYy(ngh, ngh, ngh), dYz(ngh, ngh, ngh), C(ngh, ngh, ngh))
-            call q%on_grid(xg, yg, zg, Y, dYx, dYy, dYz, C, .true.)
+            call q%on_grid(xg, yg, zg, Y, dYx, dYy, dYz, C, .false.)
 
             !---------------------------
             ! single-particle spectra

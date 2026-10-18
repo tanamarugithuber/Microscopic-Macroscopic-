@@ -57,11 +57,12 @@ program main
     !   eps2_min, eps2_max, d_eps2, eps4_min, eps4_max, d_eps4 : 探索する格子
     integer :: Z = 82, N = 126, n_gh = 44, n_times = 3
     real(dp) :: eps2 = 0.0_dp, gamma_deg = 0.0_dp, eps4 = 0.0_dp, eps6 = 0.0_dp, h = 0.5_dp
+    real(dp) :: eps1 = 0.0_dp, eps3 = 0.0_dp
     character(8) :: pairing = 'LN'
     logical :: use_grid = .false., search = .false.
     real(dp) :: eps2_min = 0.0_dp, eps2_max = 0.30_dp, d_eps2 = 0.05_dp
     real(dp) :: eps4_min = -0.08_dp, eps4_max = 0.08_dp, d_eps4 = 0.04_dp
-    namelist /frldm_input/ Z, N, eps2, gamma_deg, eps4, eps6, pairing, n_gh, use_grid, h, n_times, &
+    namelist /frldm_input/ Z, N, eps2, gamma_deg, eps3, eps4, eps6, pairing, n_gh, use_grid, h, n_times, &
                            search, eps2_min, eps2_max, d_eps2, eps4_min, eps4_max, d_eps4
 
     character(256) :: file_name
@@ -107,11 +108,11 @@ program main
         eps4 = best(2)
     end if
 
-    call calculate(eps2, gamma_deg, eps4, eps6, .true., e_pot)
+    call calculate(eps2, gamma_deg, eps3, eps4, eps6, .true., e_pot)
 
 contains
 
-    subroutine calculate(e2_, gam_, e4_, e6_, verbose, e_pot)
+    subroutine calculate(e2_, gam_, e3_, e4_, e6_, verbose, e_pot)
         ! FRLDM + shell + pairing at one deformation; e_pot = M_th (mass excess, MeV)
         ! 【日本語】
         ! 【目的】1 つの変形 (e2_, gam_ [度], e4_, e6_) で M_th を計算し, e_pot に返す.
@@ -119,7 +120,7 @@ contains
         ! 【手順】1. nucleus に Z, N と変形を入れ, 半径 R_a の epsilon 形状を作る.
         !         2. frldm_mod で E_mac (use_grid なら格子を用意して B_1, B_3 を格子で計算).
         !         3. shell_bcs_mod で E_shell + E_pair.  4. M_th = E_mac + E_s+p, B = Z M_H + N M_n - M_th.
-        real(dp), intent(in) :: e2_, gam_, e4_, e6_
+        real(dp), intent(in) :: e2_, gam_, e3_, e4_, e6_
         logical, intent(in) :: verbose
         real(dp), intent(out) :: e_pot
         type(nucleus_property) :: nucleus
@@ -134,10 +135,11 @@ contains
         nucleus%semi1 = nucleus%R0 * (Z + N)**(1.0_dp / 3.0_dp)
         nucleus%epsilon2 = e2_
         nucleus%gamma_deg = gam_
+        nucleus%epsilon3 = e3_
         nucleus%epsilon4 = e4_
         nucleus%epsilon6 = e6_
         call nucleus%calculate_fundamental_properties()
-        shape = epsilon_shape_from(nucleus%R_a, e2_, gam_ * pi / 180.0_dp, e4_, e6_)
+        shape = epsilon_shape_from(nucleus%R_a, e2_, gam_ * pi / 180.0_dp, e3_, e4_, e6_)
 
         ! macroscopic part
         frldm%verbose = .false.
@@ -165,7 +167,7 @@ contains
 
         print *
         print '(a, i4, a, i4, a, i4)', " ===== Z = ", Z, "  N = ", N, "  A = ", Z + N
-        print '(a, 4f9.4)', " eps2, gamma [deg], eps4, eps6        : ", e2_, gam_, e4_, e6_
+        print '(a, 4f9.4)', " eps2, gamma [deg], eps3, eps4, eps6        : ", e2_, gam_, e3_, e4_, e6_
         print '(a, 3f10.6)', " B_s, B_1, B_3                        : ", frldm%B_s, frldm%B_1, frldm%B_3
         print '(a, 2f10.4)', " R_pot [fm], Strutinsky range [MeV]   : ", mv%R_pot, res%gamma_S
         print '(a)', " --- macroscopic energy (FRLDM, Eq. 62) [MeV]"

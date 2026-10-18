@@ -87,8 +87,10 @@ module shape_mod
     end type ellipsoid_shape
 
     type, extends(surface_shape), public :: epsilon_shape
+        real(dp) :: eps1 = 0.0_dp
         real(dp) :: eps2 = 0.0_dp
         real(dp) :: gamma = 0.0_dp      ! radian
+        real(dp) :: eps3 = 0.0_dp
         real(dp) :: eps4 = 0.0_dp
         real(dp) :: eps6 = 0.0_dp
         real(dp) :: f(3) = 1.0_dp       ! stretching factors f_x, f_y, f_z
@@ -176,7 +178,7 @@ module shape_mod
             if (any(f <= 0.0_dp)) error stop "shape_mod: eps2 too large (non-positive stretching factor)"
         end function stretch_factors
 
-        function epsilon_shape_from(R, eps2, gamma, eps4, eps6) result(shape)
+        function epsilon_shape_from(R, eps2, gamma,eps3, eps4, eps6) result(shape)
             !---------------------------
             ! epsilon shape of volume 4/3 pi R^3; gamma in radian
             !   V = det(D)/3 int F^(-3/2) dOmega C^3,  D = diag(f^(-1/2))      (Eq. 25)
@@ -185,10 +187,10 @@ module shape_mod
             ! 【式】伸長座標での体積 V_xi = C^3/3 int F^(-3/2) dOmega,
             !   実空間の体積 V = det(D) V_xi,  D = diag(f^(-1/2)),  det(D) = (f_x f_y f_z)^(-1/2)
             !   -> C = [4 pi R^3 sqrt(f_x f_y f_z) / int F^(-3/2) dOmega]^(1/3)
-            ! 積分は 1/8 領域 (theta, phi in [0, pi/2]) を 64 x 64 点の Gauss-Legendre で行い 8 倍する
-            ! (D2h 対称性). [-1, 1] -> [0, pi/2] の変換でヤコビアン (pi/4)^2 が掛かる.
+            ! 積分は 1/4 領域 (theta, phi in [0, pi]) を 128 x 128 点の Gauss-Legendre で行い 4 倍する
+            ! (D2h 対称性).[-1, 1] -> [0, pi] の変換でヤコビアン (pi/4)^2 が掛かる.
             implicit none
-            real(dp), intent(in) :: R, eps2, gamma, eps4, eps6
+            real(dp), intent(in) :: R, eps2, gamma,eps3, eps4, eps6
             type(epsilon_shape) :: shape
             integer, parameter :: nq = 64
             real(dp) :: tq(nq), wq(nq), th, ph, s, Fv
@@ -196,6 +198,7 @@ module shape_mod
 
             shape%eps2 = eps2
             shape%gamma = gamma
+            shape%eps3 = eps3
             shape%eps4 = eps4
             shape%eps6 = eps6
             shape%f = stretch_factors(eps2, gamma)
@@ -228,7 +231,7 @@ module shape_mod
             implicit none
             class(epsilon_shape), intent(in) :: this
             real(dp), intent(in) :: th, ph
-            real(dp) :: Fv, n(3), u, v, u2, w, P4, P6, a40, a42, a44, SY42, SY44, V4
+            real(dp) :: Fv, n(3), u, v, u2, w, P1, P3, P4, P6, a40, a42, a44, SY42, SY44, V4
 
             n = [sin(th) * cos(ph), sin(th) * sin(ph), cos(th)]
             Fv = sum(this%f * n * n)
@@ -237,6 +240,8 @@ module shape_mod
                 u2 = u * u
                 v = cos(2.0_dp * ph)
                 w = 1.0_dp - u2
+                P1 = u
+                P3 = 0.5_dp * (5.0_dp * u2 - 3.0_dp) * u
                 P4 = (35.0_dp * u2 * u2 - 30.0_dp * u2 + 3.0_dp) / 8.0_dp
                 P6 = (231.0_dp * u2**3 - 315.0_dp * u2 * u2 + 105.0_dp * u2 - 5.0_dp) / 16.0_dp
                 a40 = (5.0_dp * cos(this%gamma)**2 + 1.0_dp) / 6.0_dp
@@ -245,7 +250,8 @@ module shape_mod
                 SY42 = sqrt(45.0_dp / (32.0_dp * pi)) * w * (7.0_dp * u2 - 1.0_dp) * v
                 SY44 = sqrt(315.0_dp / (128.0_dp * pi)) * w * w * (2.0_dp * v * v - 1.0_dp)
                 V4 = a40 * P4 + sqrt(4.0_dp * pi / 9.0_dp) * (a42 * SY42 + a44 * SY44)
-                Fv = Fv + 2.0_dp * this%eps4 * V4 + 2.0_dp * this%eps6 * P6
+                Fv = Fv + 2.0_dp * this%eps1 * P1 + 2.0_dp * this%eps3 * P3 &
+                           + 2.0_dp * this%eps4 * V4 + 2.0_dp * this%eps6 * P6 
             end if
         end function epsilon_F
 
