@@ -71,6 +71,7 @@ program main
     real(dp) :: eps1 = 0.0_dp, eps3 = 0.0_dp
     character(8) :: pairing = 'LN'
     logical :: use_grid = .false., search = .false., zpe = .true.
+    integer :: t1, t2, t_rate, t_max, diff
     real(dp) :: eps2_min = 0.0_dp, eps2_max = 0.30_dp, d_eps2 = 0.05_dp
     real(dp) :: eps4_min = -0.08_dp, eps4_max = 0.08_dp, d_eps4 = 0.04_dp
     namelist /frldm_input/ Z, N, eps2, gamma_deg, eps3, eps4, eps6, pairing, n_gh, use_grid, h, n_times, &
@@ -83,6 +84,8 @@ program main
     type(frldm_variables) :: frldm
     type(microscopic_variables) :: mv
     type(shell_bcs_result) :: res
+
+    call system_clock(t1)
 
     file_name = 'input.nml'
     if (command_argument_count() >= 1) call get_command_argument(1, file_name)
@@ -121,6 +124,15 @@ program main
 
     call calculate(eps2, gamma_deg, eps3, eps4, eps6, .true., e_pot)
     if (zpe) call add_zero_point(e_pot)
+
+    call system_clock(t2, t_rate, t_max)
+    if (t1 > t2) then
+        diff = t_max - t1 + t2 + 1
+        print '(a, f8.2, a)', " total time: ", real(diff, dp) / real(t_rate, dp), " s"
+    else
+        diff = t2 - t1
+        print '(a, f8.2, a)', " total time: ", real(diff, dp) / real(t_rate, dp), " s"
+    end if
 
 contains
 
