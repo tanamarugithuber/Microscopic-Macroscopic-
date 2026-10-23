@@ -130,19 +130,25 @@ contains
         ! deformations fixed; C from the least-squares parabola (zero_point_mod).
         ! eps2 < 0.17: E_0,gamma = E_0,eps2 (the gamma curvature is not computed).
         ! Triaxial ground states (interpolation of the inertia, Sec. 2.11) are not treated.
+        ! E_mac and E_s+p of the ground state are taken from the last call of calculate
+        ! (the one that gave e_gs) before the scan overwrites them.
         ! 【日本語】
         ! 【目的】最後の形状で零点エネルギー E_zp を求め, M_th + E_zp を表示する.
         ! 【手順】1. eps2 を +-0.05, +-0.10, +-0.15 ずらした 6 点で E_pot を計算 (他の変形は固定).
         !         2. 基底状態の e_gs と合わせた 7 点から zero_eps2 で E_0,eps2.
         !         3. eps2 >= 0.17 なら gamma を +-5, +-10, +-15 度ずらして同様に E_0,gamma.
         !            eps2 < 0.17 なら E_0,gamma = E_0,eps2 (FRDM2012 2.11 節).
+        ! 基底状態の E_mac, E_s+p は, ずらした形の計算で上書きされる前に控えておく.
         real(dp), intent(in) :: e_gs
         real(dp), parameter :: h_eps = 0.05_dp, h_gam_deg = 5.0_dp, eps2_gamma_min = 0.17_dp
         type(nucleus_property) :: nuc
         type(zero_eps2) :: zp_eps2
         type(zero_gamma) :: zp_gamma
-        real(dp) :: E7(7), e0_eps2, e0_gamma, E_zp, M_th
+        real(dp) :: E7(7), e0_eps2, e0_gamma, E_zp, M_th, e_mac_gs, e_sp_gs
         integer :: k
+
+        e_mac_gs = frldm%E_frldm
+        e_sp_gs = res%e_micro
 
         nuc%Z = Z
         nuc%N = N
@@ -177,6 +183,9 @@ contains
         end if
         print '(a, f12.4)', "   E_zp                  : ", E_zp
         print '(a)', " --- result with the zero-point energy [MeV]"
+        print '(a, f12.4)', "   E_mac (ground state)  : ", e_mac_gs
+        print '(a, f12.4)', "   E_s+p (ground state)  : ", e_sp_gs
+        print '(a, f12.4)', "   E_zp                  : ", E_zp
         print '(a, f12.4)', "   mass excess M_th      : ", M_th
         print '(a, f12.4)', "   binding energy B      : ", M_H * Z + M_n * N - M_th
         print '(a, f12.4)', "   B / A                 : ", (M_H * Z + M_n * N - M_th) / (Z + N)
