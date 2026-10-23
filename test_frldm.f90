@@ -6,6 +6,8 @@ program test_frldm
     !   2. deformed shape (eps2 = 0.22, eps4 = -0.05, eps6 = 0.04): B_3 from the surface
     !      integrals against the grid + Hockney value (B_1 on the grid has an O(h) error
     !      from the smeared surface cells and is only printed)
+    !   2b. octupole shape (eps2 = 0.15, eps3 = 0.10, eps4 = -0.04): the same comparison; the surface
+    !      integrals use only the x, y reflections, the grid uses no symmetry at all
     !   3. macroscopic mass excess of 208Pb, 132Sn, 40Ca against FRDM2012
     !      (M_th^FL - E_mic^FL: -8.72, -64.98, -37.52 MeV)
     !
@@ -30,7 +32,9 @@ program test_frldm
     call test_sphere(8, 8)
     call test_sphere(82, 126)
     print *, "--- 2. deformed shape, surface integrals vs grid ---"
-    call test_deformed()
+    call test_deformed(94, 146, 0.22_dp, 0.0_dp, -0.05_dp, 0.04_dp)
+    print *, "--- 2b. octupole shape (eps3 /= 0), surface integrals vs grid ---"
+    call test_deformed(88, 136, 0.15_dp, 0.10_dp, -0.04_dp, 0.0_dp)
     print *, "--- 3. macroscopic mass excess vs FRDM2012 ---"
     call test_mac(82, 126, -8.72_dp)
     call test_mac(50, 82, -64.98_dp)
@@ -56,9 +60,9 @@ contains
         end if
     end subroutine check
 
-    subroutine setup(Z, N, e2_, e4_, e6_, nuc, shape)
+    subroutine setup(Z, N, e2_, e3_, e4_, e6_, nuc, shape)
         integer, intent(in) :: Z, N
-        real(dp), intent(in) :: e2_, e4_, e6_
+        real(dp), intent(in) :: e2_, e3_, e4_, e6_
         type(nucleus_property), intent(out) :: nuc
         type(epsilon_shape), intent(out) :: shape
         nuc%Z = Z
@@ -66,10 +70,11 @@ contains
         nuc%A = Z + N
         nuc%semi1 = nuc%R0 * (Z + N)**(1.0_dp / 3.0_dp)
         nuc%epsilon2 = e2_
+        nuc%epsilon3 = e3_
         nuc%epsilon4 = e4_
         nuc%epsilon6 = e6_
         nuc%R_a = nuc%R0 * (Z + N)**(1.0_dp / 3.0_dp)
-        shape = epsilon_shape_from(nuc%R_a, e2_, 0.0_dp, e4_, e6_)
+        shape = epsilon_shape_from(nuc%R_a, e2_, 0.0_dp, e3_, e4_, e6_)
     end subroutine setup
 
     subroutine test_sphere(Z, N)
@@ -78,7 +83,7 @@ contains
         type(epsilon_shape) :: shape
         type(frldm_variables) :: fr
         real(dp) :: x0, y0, B10, B30
-        call setup(Z, N, 0.0_dp, 0.0_dp, 0.0_dp, nuc, shape)
+        call setup(Z, N, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, nuc, shape)
         call fr%calculate_b_1_b_3_surface(nuc, shape)
         x0 = nuc%R_a / a_Yukawa
         y0 = nuc%R_a / a_den
@@ -91,13 +96,15 @@ contains
         call check("|B_3 - Eq. (74)|                 ", abs(fr%B_3 - B30), 1.0e-8_dp)
     end subroutine test_sphere
 
-    subroutine test_deformed()
+    subroutine test_deformed(Z, N, e2_, e3_, e4_, e6_)
+        integer, intent(in) :: Z, N
+        real(dp), intent(in) :: e2_, e3_, e4_, e6_
         type(nucleus_property) :: nuc
         type(epsilon_shape) :: shape
         type(frldm_variables) :: fr
         type(grid_type) :: g
         real(dp) :: b1s, b3s
-        call setup(94, 146, 0.22_dp, -0.05_dp, 0.04_dp, nuc, shape)
+        call setup(Z, N, e2_, e3_, e4_, e6_, nuc, shape)
         call fr%calculate_b_1_b_3_surface(nuc, shape)
         b1s = fr%B_1
         b3s = fr%B_3
@@ -121,7 +128,7 @@ contains
         type(epsilon_shape) :: shape
         type(frldm_variables) :: fr
         real(dp) :: E
-        call setup(Z, N, 0.0_dp, 0.0_dp, 0.0_dp, nuc, shape)
+        call setup(Z, N, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, nuc, shape)
         fr%verbose = .false.
         call fr%calculate_frldm_energy(nuc, shape, E)
         print '(a, i4, a, i4, a, f10.4, a, f10.4)', " Z = ", Z, "  N = ", N, "  E_mac = ", E, "   FRDM2012: ", ref

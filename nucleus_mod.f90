@@ -1,7 +1,7 @@
 module nucleus_mod
     !$ use omp_lib
     use iso_fortran_env, only: real64
-    use constant_mod, only: pi
+    use constant_mod, only: pi, m_nucleon
     implicit none
     private
 
@@ -19,6 +19,7 @@ module nucleus_mod
         integer :: A  ! mass number
         real(dp) :: R0 = 1.16_dp ! fm, radius parameter
         real(dp) :: R_a ! fm, average radius
+        real(dp) :: Mass ! MeV, mass of the nucleus
 
         !---------------------------
         ! Nucleus shape parameters, Z-axis is the symmetry axis
@@ -34,7 +35,8 @@ module nucleus_mod
         !---------------------------
         ! epsilon2 : 四重極変形 eps2,  gamma_deg : 三軸性の角度 gamma [度],
         ! epsilon4, epsilon6 : 十六重極・六十四重極変形 (shape_mod の epsilon 形状に渡す)
-        ! epsilon3, epsilon5 : 反転非対称な変形 (まだ使っていない)
+        ! epsilon3 : 八重極変形 (shape_mod の epsilon 形状に渡す. epsilon1 は shape_mod が重心条件で決める)
+        ! epsilon5 : 反転非対称な変形 (まだ使っていない)
         real(dp) :: epsilon2 = 0.0_dp ! quadrupole deformation epsilon
         real(dp) :: gamma_deg = 0.0_dp ! triaxiality gamma in degree (0: axially symmetric about z)
         real(dp) :: epsilon3 = 0.0_dp
@@ -58,6 +60,8 @@ module nucleus_mod
             this%A = this%N + this%Z
 
             this%R_a = this%R0 * this%A**(1.0_dp / 3.0_dp)
+
+            this%mass = this%A * m_nucleon  ! MeV, approximate mass of the nucleus
 
             this%volume = (4.0_dp / 3.0_dp) * pi * this%R_a**3
 
@@ -84,6 +88,7 @@ module nucleus_mod
             print *, "Z =", this%Z
             print *, "N =", this%N
             print *, "R_a =", this%R_a
+            print *, "Mass =", this%mass
             print *, "Volume =", this%volume
             print *, "Surface Area =", this%surface_area
         end subroutine calculate_fundamental_properties

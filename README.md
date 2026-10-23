@@ -16,11 +16,11 @@
 
 main は 1 つの原子核について，FRLDM の巨視的エネルギーと，Strutinsky 法のシェル補正 + Lipkin–Nogami（または BCS）の対補正を計算し，質量超過と結合エネルギーを出力します．
 
-- M_th = E_mac + E_shell + E_pair（質量超過，MeV）
+- M_th = E_mac + E_shell + E_pair + E_zp（質量超過，MeV）
 - B = Z M_H + N M_n − M_th（結合エネルギー）
-- 形は FRDM の ε パラメータ (ε2, γ, ε4, ε6) です．
+- 形は FRDM の ε パラメータ (ε2, γ, ε3, ε4, ε6) です．ε1 は重心が原点に来るように ε3 から自動で決まります．
 - `search = .true.` にすると (ε2, ε4) の格子上で E_mac + E_s+p が最小になる形を探し，その形で結果を出します．
-- 零点エネルギー（FRDM2012 Sec. 2.11）はまだ入れていません．
+- `zpe = .true.`（既定）なら，最後の形で零点エネルギー E_zp（FRDM2012 Sec. 2.11，zero_point_mod）を足します．ε2 を ±0.05, ±0.10, ±0.15 ずらした 6 点（ε2 ≥ 0.17 なら γ を ±5°, ±10°, ±15° ずらした 6 点も）で E_pot を計算し，7 点の最小二乗放物線からかたさ C を求めます．ε2 < 0.17 では E_0,γ = E_0,ε2 です．形を 6〜12 点余分に計算するので，時間は 7〜13 倍かかります．`zpe = .false.` で零点エネルギーなしになります．
 
 ```bash
 bash build.sh        # FFTW3 と LAPACK が必要
@@ -58,7 +58,7 @@ FRDM2012 の表の値と比べました（E_mac の表の値は M_th^FL − E_mi
 | ⁴⁰Ca | (0, 0, 0) | −37.51 | −37.52 | −0.52 | −0.52 |
 | ⁴⁸Ca | (0, 0, 0) | −43.34 | −43.34 | −1.95 | −1.94 |
 
-²⁴⁰Pu は表の E_mac が球形の値なので比べていません．M_th は表の M_th^FL より 1〜2 MeV 低く出ます（²⁰⁸Pb で −22.64 と −21.31）．差はほぼ零点エネルギーで，E_mic^FL − E_s+p（²⁰⁸Pb で 1.34 MeV）と一致します．
+²⁴⁰Pu は表の E_mac が球形の値なので比べていません．零点エネルギーを入れると，²⁰⁸Pb の M_th は −21.26 MeV（表の M_th^FL は −21.31），²⁴⁰Pu は 50.90 MeV（表は 50.69）になります．
 
 ## 参考文献
 
@@ -129,7 +129,9 @@ FRLDM+Shell+BCS の計算に使わないファイルは not_use/ にまとめて
 
 FRDM2012 の ε パラメータ (ε2, γ, ε4, ε6)（Eqs. (17)–(25)）の形を，伸縮座標での Nilsson 等ポテンシャル面として作ります．
 
-- `epsilon_shape_from(R, eps2, gamma, eps4, eps6)`（γ はラジアン）で，体積 4πR³/3 の形を返します．
+- `epsilon_shape_from(R, eps2, gamma, eps3, eps4, eps6)`（γ はラジアン）で，体積 4πR³/3 の形を返します．
+- ε3 ≠ 0 のときは，重心の条件 ∫cosθ_t F⁻² dΩ = 0 を二分法で解いて ε1 を決めます（FRDM2012 p. 35 の Notes added in proof）．結果は `shape%eps1` に入ります．
+- どの形も x, y の鏡映について対称です．ε3 は z の鏡映対称性を破るので，体積・表面積分は 1/4 領域（x, y ≥ 0）で行います．
 - `eval(u, v, r, N)` で表面の点と法線 N = ∂r/∂u × ∂r/∂v，`inside(x)` で内外判定，`relative_area()` で B_s（Eq. 70），`volume()` で体積を返します．
 - ε4 = ε6 = 0 では `ellipsoid_from_eps_gamma` の楕円体と一致します．²⁴⁰Pu（ε2 = 0.22, ε4 = −0.05, ε6 = 0.04）の β2, β4, β6 = 0.237, 0.086, −0.024 は FRDM2012 の表と一致します．
 
@@ -168,7 +170,7 @@ gfortran -O2 -fopenmp constant_mod.f90 ho_basis_mod.f90 test_ho_basis.f90 -llapa
 - `Y = V₁/(-V₀)`，`∇Y`，`C = V_C/(e²ρ_c)` を返します．`V₁ = -V₀ Y`，`V_C = e²ρ_c C`（ρ_c = Z/(4πR_pot³/3)）です．
 - 形状は shape_mod の `surface_shape` を使います（`epsilon_shape`，`ellipsoid_shape`）．
 - 表面近くの点は，表面パネルを適応的に分割して計算します．∇Y の 1/s 特異性は恒等式で取り除いてあります．
-- `on_grid(..., d2h=.true.)` で鏡映対称性を使い，1/8 の点だけを計算します．
+- `on_grid(..., d2h=.true.)` で鏡映対称性を使い，1/8 の点だけを計算します．shell_bcs_mod は ε3 = 0 のときだけ d2h を使います．
 
 ```bash
 gfortran -O2 -fopenmp constant_mod.f90 shape_mod.f90 ho_basis_mod.f90 potential_gh_mod.f90 test_potential_gh.f90 -llapack -o test_potential_gh.exe
@@ -222,7 +224,7 @@ gfortran -O2 -fopenmp -I/usr/include constant_mod.f90 calculate_potential_hockne
 
 ## シェル補正と対補正 (shell_bcs_mod.f90)
 
-`call shell_bcs_calculation(nucleus, mv, res, n_gh, pairing)` で，(ε2, γ, ε4, ε6) の形について中性子・陽子のシェル補正と対補正を計算します（FRDM2012 Eqs. (78)–(111)，Möller–Nix 1992）．定数は micro_constant_mod のものを使います．
+`call shell_bcs_calculation(nucleus, mv, res, n_gh, pairing)` で，(ε2, γ, ε4, ε6) の形について中性子・陽子のシェル補正と対補正を計算します（ε3 も使えます）（FRDM2012 Eqs. (78)–(111)，Möller–Nix 1992）．定数は micro_constant_mod のものを使います．
 
 1. 一粒子準位：ho_basis_mod の変形 HO 基底（ħω0 = C_cur/A^{1/3}，N_bas = 12 殻）と potential_gh_mod の V1, VC（半径 R_pot の ε 形状）からハミルトニアンを作り，対角化します．スピン軌道項は部分積分形です．δ̄, ε̄, R_pot, V_p, V_n などは `mv%calculate_microscopic_variables`（Eqs. (82)–(93)）で `mv` に入ります．
 2. Strutinsky 法：ガウス関数 × p 次の補正多項式（p = 8）で平滑化します．幅は γ_S = C_S ħω0 B_s です．E_shell = Σe_i − Ẽ．
@@ -237,9 +239,22 @@ gfortran -O2 -fopenmp constant_mod.f90 nucleus_mod.f90 shape_mod.f90 micro_const
 ./test_shell_bcs.exe
 ```
 
+### zero_point_mod.f90
+
+零点エネルギー E_zp = E_0,ε2 + E_0,γ（FRDM2012 Sec. 2.11，Eqs. (112)–(118)）を計算します．
+
+- E_0,λ = ½ 𝒦 ħc (C_λ / B_λ^irr)^{1/2}，𝒦 = 0.2475（`frK`）です．B^irr は非圧縮・渦なし流れの慣性（Eqs. (116), (117)）で，M0 = A m_nuc，R0 = r0 A^{1/3} を使います．
+- かたさ C は，等間隔 7 点 λ_gs + k h（k = −3, …, 3）の最小二乗放物線から求めます：C = [5(E₃ + E₋₃) − 3(E₁ + E₋₁) − 4E₀] / (42h²)．殻構造の凹凸をならした曲率なので，局所的な 2 階微分（7 点中心差分）とは違います．
+- E_pot を集めるループは main の `add_zero_point` にあります．
+
+```bash
+gfortran -O2 constant_mod.f90 nucleus_mod.f90 micro_constant_mod.f90 zero_point_mod.f90 test_zero_point.f90 -o test_zero_point.exe
+./test_zero_point.exe
+```
+
 ## 残っていること
 
-- 零点エネルギー（FRDM2012 Sec. 2.11）：ε2 と γ 方向のポテンシャルの曲率と慣性から求める項で，まだ入れていません．M_th が表の値より 1〜2 MeV 低いのはこのためです．
+- 零点エネルギー：基底状態が三軸非対称な核で慣性を補間する処理（FRDM2012 Sec. 2.11）は入れていません．
 - 基底状態の探索は (ε2, ε4) の格子探索だけです．ε3, ε6, γ を含む探索や最小値の補間はしていません．
 - D2h 対称性によるハミルトニアンのブロック対角化（ho_basis_mod の TODO）．速くなりますが結果は変わりません．
 
