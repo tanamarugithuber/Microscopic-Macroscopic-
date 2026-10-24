@@ -1,4 +1,4 @@
-# MACROSCOPIC-MICROSCOPIC法
+  # MACROSCOPIC-MICROSCOPIC法
 
 ## 概要
 
@@ -133,7 +133,7 @@ FRLDM+Shell+BCS の計算に使わないファイルは not_use/ にまとめて
 
 ## 原子核の形 (shape_mod.f90)
 
-FRDM2012 の ε パラメータ (ε2, γ, ε4, ε6)（Eqs. (17)–(25)）の形を，伸縮座標での Nilsson 等ポテンシャル面として作ります．
+FRDM2012 の ε パラメータ (ε2, γ, ε3, ε4, ε6)（Eqs. (17)–(25)）の形を，伸縮座標での Nilsson 等ポテンシャル面として作ります．
 
 - `epsilon_shape_from(R, eps2, gamma, eps3, eps4, eps6)`（γ はラジアン）で，体積 4πR³/3 の形を返します．
 - ε3 ≠ 0 のときは，重心の条件 ∫cosθ_t F⁻² dΩ = 0 を二分法で解いて ε1 を決めます（FRDM2012 p. 35 の Notes added in proof）．結果は `shape%eps1` に入ります．詳しくは「[八重極変形 ε3 と重心の ε1](#八重極変形-ε3-と重心の-ε1)」を見てください．
