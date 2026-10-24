@@ -2119,6 +2119,7 @@ subroutine Shell_and_BCS
     write(40,*) 'N_tot', N_tot
     write(40,*) 'gamma_shell', gamma_shell
     close(40)
+    
 
 
 end subroutine Shell_and_BCS
@@ -2126,7 +2127,7 @@ end subroutine Shell_and_BCS
 subroutine sum_FRLDM_MICRO
     use parameter
     implicit none
-    
+
     print *, "Calculating total FRLDM + Microscopic energy..."
     FRLDM_MICRO_energy = FRLDM_energy + delta_E_shell_proton + delta_E_shell_neutron + &
     delta_E_p_c_proton + delta_E_p_c_neutron
