@@ -96,7 +96,7 @@ program main
     real(dp) :: d_eps = 0.01_dp, d_eps_start = 0.04_dp
     namelist /frldm_input/ Z, N, eps2, gamma_deg, eps3, eps4, eps6, pairing, n_gh, use_grid, h, n_times, &
                            search, search_method, eps2_min, eps2_max, d_eps2, eps4_min, eps4_max, d_eps4, &
-                           eps3_max, eps6_min, eps6_max, d_eps, d_eps_start, n_gh_search, zpe
+                           eps3_max, eps6_min, eps6_max, d_eps, d_eps_start, n_gh_search, zpe, make_table
 
     character(256) :: file_name
     logical :: exists
@@ -111,7 +111,7 @@ program main
     type(shell_bcs_result) :: res
 
     character(256) :: Z_num, N_num
-    real(dp) :: E_bind, B_A, E_zp, M_th
+    real(dp) :: E_bind, B_A, E_zp, M_th, e_mac_out, e_sp_out
 
     call system_clock(t1)
 
@@ -142,30 +142,40 @@ program main
     end if
 
     call calculate(eps2, gamma_deg, eps3, eps4, eps6, .true., e_pot)
-    if (zpe) call add_zero_point(e_pot, E_zp, M_th, E_bind, B_A)
+    ! E_mac, E_s+p of the final shape: add_zero_point overwrites frldm and res
+    e_mac_out = frldm%E_frldm
+    e_sp_out = res%e_micro
+    if (zpe) then
+        call add_zero_point(e_pot, E_zp, M_th, E_bind, B_A)
+    else
+        E_zp = 0.0_dp
+        M_th = e_pot
+        E_bind = M_H * Z + M_n * N - M_th
+        B_A = E_bind / (Z + N)
+    end if
 
     ! Output the data to a file
     write(*,*) "Writing results to text file..."
     write(Z_num, '(I3.3)') Z
     write(N_num, '(I3.3)') N
-    open(unit=10, file="data/results"//trim(Z_num)//"_"//trim(N_num)//".txt", status="replace", action="write")
-        write(10,*) "Z = ", Z
-        write(10,*) " N = ", N
-        write(10,*) " eps2 = ", eps2
-        write(10,*) " eps3 = ", eps3
-        write(10,*) " eps4 = ", eps4
-        write(10,*) " eps6 = ", eps6
-        write(10,*) " E_mac = ", frldm%E_frldm
-        write(10,*) " E_shell + E_pair = ", res%e_micro
-        write(10,*) " E_zp = ", E_zp
-        write(10,*) " M_th = ", M_th
-        write(10,*) " B = ", E_bind
-        write(10,*) " B / A = ", B_A
-    close(10)
+    open(newunit=unit, file="data/results"//trim(Z_num)//"_"//trim(N_num)//".txt", status="replace", action="write")
+        write(unit,*) "Z = ", Z
+        write(unit,*) " N = ", N
+        write(unit,*) " eps2 = ", eps2
+        write(unit,*) " eps3 = ", eps3
+        write(unit,*) " eps4 = ", eps4
+        write(unit,*) " eps6 = ", eps6
+        write(unit,*) " E_mac = ", e_mac_out
+        write(unit,*) " E_shell + E_pair = ", e_sp_out
+        write(unit,*) " E_zp = ", E_zp
+        write(unit,*) " M_th = ", M_th
+        write(unit,*) " B = ", E_bind
+        write(unit,*) " B / A = ", B_A
+    close(unit)
     if (make_table) then
-        write(unit=10, file="data/data_table.txt", status="append", action="write")
-            write(10,*) Z, N, eps2, eps3, eps4, eps6, frldm%E_frldm, res%e_micro, E_zp, M_th, E_bind, B_A
-        close(10)
+        open(newunit=unit, file="data/data_table.txt", status="unknown", position="append", action="write")
+            write(unit,*) Z, N, eps2, eps3, eps4, eps6, e_mac_out, e_sp_out, E_zp, M_th, E_bind, B_A
+        close(unit)
     end if
 
     write(*,*) "Results written to data/results"//trim(Z_num)//"_"//trim(N_num)//".txt"
