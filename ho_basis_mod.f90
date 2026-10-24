@@ -85,6 +85,7 @@ module ho_basis_mod
     public :: gauss_hermite
     public :: so_strength
     public :: diagonalize_hamiltonian
+    public :: eigenvalues_hamiltonian
 
     contains
         function frequencies_from_eps_gamma(hbar_omega0, eps, gamma) result(hw)
@@ -554,5 +555,28 @@ module ho_basis_mod
             if (info /= 0) stop "diagonalize_hamiltonian: zheev failed"
             deallocate(work, rwork)
         end subroutine diagonalize_hamiltonian
+
+        ! 【目的】エルミート行列 H の全固有値 e (昇順) だけを求める (LAPACK zheev, 固有ベクトルなし).
+        ! 殻補正・対補正は準位だけを使うので, diagonalize_hamiltonian より速い.
+        subroutine eigenvalues_hamiltonian(H, e)
+            ! all eigenvalues e (ascending) of a Hermitian matrix, no eigenvectors
+            implicit none
+            complex(dp), intent(in) :: H(:,:)
+            real(dp), intent(out) :: e(:)
+            complex(dp), allocatable :: A(:,:), work(:)
+            real(dp), allocatable :: rwork(:)
+            complex(dp) :: wq(1)
+            integer :: n, lwork, info
+
+            n = size(H, 1)
+            A = H
+            allocate(rwork(max(1, 3 * n - 2)))
+            call zheev('N', 'U', n, A, n, e, wq, -1, rwork, info)
+            lwork = int(real(wq(1)))
+            allocate(work(lwork))
+            call zheev('N', 'U', n, A, n, e, work, lwork, rwork, info)
+            if (info /= 0) stop "eigenvalues_hamiltonian: zheev failed"
+            deallocate(work, rwork)
+        end subroutine eigenvalues_hamiltonian
 
 end module ho_basis_mod

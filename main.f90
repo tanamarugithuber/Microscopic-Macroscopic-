@@ -13,8 +13,10 @@ program main
     !
     ! The shape is the FRDM epsilon parametrisation (eps2, gamma, eps3, eps4, eps6), Eqs. (17)-(25);
     ! eps1 follows from eps3 by the centre-of-mass condition (shape_mod).
-    ! With search = .true. the potential energy E_mac + E_shell + E_pair is minimised on a
-    ! grid in (eps2, eps4) (axial, eps6 = 0 unless given), and the minimum is reported.
+    ! With search = .true. the potential energy E_mac + E_shell + E_pair is minimised and the
+    ! final result is given at the minimum. search_method = 'pattern' (default) minimises in
+    ! (eps2, eps3, eps4, eps6) on a lattice of step d_eps by a pattern search from several
+    ! starting points, as FRDM2012 (Sec. 3, step 3); 'grid' scans the (eps2, eps4) grid.
     ! With zpe = .true. (default) the zero-point energy is added at the final shape: E_pot is
     ! computed at eps2 +- 0.05, 0.10, 0.15 (and gamma +- 5, 10, 15 deg when eps2 >= 0.17) and the
     ! stiffness C is fitted by a least-squares parabola. For eps2 < 0.17, E_0,gamma = E_0,eps2.
@@ -27,8 +29,14 @@ program main
     !   n_gh                 : Gauss-Hermite points per axis of the single-particle problem
     !   use_grid, h, n_times : B_1, B_3 from the grid + Hockney method instead of the surface
     !                          integrals (cross-check; grid spacing h fm, box n_times x nucleus)
-    !   search               : ground-state search on the (eps2, eps4) grid
-    !   eps2_min, eps2_max, d_eps2, eps4_min, eps4_max, d_eps4 : search grid
+    !   search               : ground-state search
+    !   search_method        : 'pattern' (default) or 'grid'
+    !   eps2_min, eps2_max, eps3_max, eps4_min, eps4_max, eps6_min, eps6_max : search range
+    !                          (eps3 from 0 to eps3_max, since E(-eps3) = E(eps3); min = max fixes
+    !                          the variable)
+    !   d_eps, d_eps_start   : final and first step of the pattern search
+    !   d_eps2, d_eps4       : steps of the 'grid' search
+    !   n_gh_search          : Gauss-Hermite points during the search (0: same as n_gh)
     !   zpe                  : add the zero-point energy (6 or 12 more shapes)
     !---------------------------
     ! 【日本語での説明】
@@ -37,8 +45,10 @@ program main
     !   B    = Z M_H + N M_n - M_th                    (結合エネルギー [MeV])
     !   E_mac : frldm_mod (FRDM2012 式 62),  E_shell, E_pair : shell_bcs_mod
     ! 入力は namelist &frldm_input (第 1 引数のファイル, 既定 input.nml).
-    ! search = .true. なら (eps2, eps4) の格子上で E_mac + E_shell + E_pair が最小の形状を探し,
-    ! その形状で詳しい結果を出力する.
+    ! search = .true. なら E_mac + E_shell + E_pair が最小の形状を探し, その形状で詳しい結果を出力する.
+    !   search_method = 'pattern' (既定): (eps2, eps3, eps4, eps6) の刻み d_eps の格子上で,
+    !     いくつかの初期点からパターン探索 (FRDM2012 3 章の手順 3 と同じ離散最小化) をする.
+    !   search_method = 'grid': これまでどおり (eps2, eps4) の格子を全部計算する.
     ! zpe = .true. (既定) なら, 最後の形状で零点エネルギー E_zp (2.11 節, zero_point_mod) を足す.
     !   eps2 +- 0.05, 0.10, 0.15 (eps2 >= 0.17 なら gamma +- 5, 10, 15 度も) で E_pot を計算し,
     !   7 点の最小二乗放物線からかたさ C を求める. eps2 < 0.17 では E_0,gamma = E_0,eps2.
@@ -64,23 +74,36 @@ program main
     !   use_grid, h, n_times : B_1, B_3 を格子 + Hockney 法で求める (検算用;
     !                          格子間隔 h [fm], 箱は核の n_times 倍)
     !   search      : 基底状態探索をするか
-    !   eps2_min, eps2_max, d_eps2, eps4_min, eps4_max, d_eps4 : 探索する格子
+    !   search_method : 'pattern' (既定) または 'grid'
+    !   eps2_min, eps2_max, eps3_max, eps4_min, eps4_max, eps6_min, eps6_max : 探索範囲
+    !                 (E(-eps3) = E(eps3) なので eps3 は 0 から eps3_max. min = max ならその変数は固定)
+    !   d_eps, d_eps_start : パターン探索の最後と最初の刻み
+    !   d_eps2, d_eps4     : 'grid' の刻み
+    !   n_gh_search : 探索中の Gauss-Hermite 点数 (0 なら n_gh と同じ)
     !   zpe         : 零点エネルギーを足すか (形状を 6 点または 12 点余分に計算する)
-    integer :: Z = 82, N = 126, n_gh = 44, n_times = 3
+    integer :: Z = 82, N = 126, n_gh = 44, n_times = 3, n_gh_search = 0
     real(dp) :: eps2 = 0.0_dp, gamma_deg = 0.0_dp, eps4 = 0.0_dp, eps6 = 0.0_dp, h = 0.5_dp
     real(dp) :: eps1 = 0.0_dp, eps3 = 0.0_dp
     character(8) :: pairing = 'LN'
     logical :: use_grid = .false., search = .false., zpe = .true.
     integer :: t1, t2, t_rate, t_max, diff
-    real(dp) :: eps2_min = 0.0_dp, eps2_max = 0.30_dp, d_eps2 = 0.05_dp
-    real(dp) :: eps4_min = -0.08_dp, eps4_max = 0.08_dp, d_eps4 = 0.04_dp
+    character(8) :: search_method = 'pattern'
+    real(dp) :: eps2_min = -0.30_dp, eps2_max = 0.45_dp, d_eps2 = 0.05_dp
+    real(dp) :: eps4_min = -0.12_dp, eps4_max = 0.12_dp, d_eps4 = 0.04_dp
+    real(dp) :: eps3_max = 0.20_dp, eps6_min = -0.08_dp, eps6_max = 0.08_dp
+    real(dp) :: d_eps = 0.01_dp, d_eps_start = 0.04_dp
     namelist /frldm_input/ Z, N, eps2, gamma_deg, eps3, eps4, eps6, pairing, n_gh, use_grid, h, n_times, &
-                           search, eps2_min, eps2_max, d_eps2, eps4_min, eps4_max, d_eps4, zpe
+                           search, search_method, eps2_min, eps2_max, d_eps2, eps4_min, eps4_max, d_eps4, &
+                           eps3_max, eps6_min, eps6_max, d_eps, d_eps_start, n_gh_search, zpe
 
     character(256) :: file_name
     logical :: exists
-    integer :: unit, ios, i2, i4, n2, n4
-    real(dp) :: e_pot, e_best, best(2)
+    integer :: unit, ios, n_gh_final
+    ! cache of pattern_search: lattice points c_x(:, i) with E_pot c_e(i), n_eval shapes computed
+    integer, allocatable :: c_x(:,:)
+    real(dp), allocatable :: c_e(:)
+    integer :: n_eval = 0
+    real(dp) :: e_pot
     type(frldm_variables) :: frldm
     type(microscopic_variables) :: mv
     type(shell_bcs_result) :: res
@@ -101,6 +124,38 @@ program main
     end if
 
     if (search) then
+        n_gh_final = n_gh
+        if (n_gh_search > 0) n_gh = n_gh_search
+        if (search_method == 'grid') then
+            call grid_search()
+        else if (search_method == 'pattern') then
+            call pattern_search()
+        else
+            stop "main: search_method must be 'pattern' or 'grid'"
+        end if
+        n_gh = n_gh_final
+    end if
+
+    call calculate(eps2, gamma_deg, eps3, eps4, eps6, .true., e_pot)
+    if (zpe) call add_zero_point(e_pot)
+
+    call system_clock(t2, t_rate, t_max)
+    if (t1 > t2) then
+        diff = t_max - t1 + t2 + 1
+        print '(a, f8.2, a)', " total time: ", real(diff, dp) / real(t_rate, dp), " s"
+    else
+        diff = t2 - t1
+        print '(a, f8.2, a)', " total time: ", real(diff, dp) / real(t_rate, dp), " s"
+    end if
+
+contains
+
+    subroutine grid_search()
+        ! E_pot on the full (eps2, eps4) grid, eps3 and eps6 fixed at the input values
+        ! 【日本語】(eps2, eps4) の格子を全部計算し, 最小の点を eps2, eps4 に入れる.
+        integer :: i2, i4, n2, n4
+        real(dp) :: e_best, best(2)
+
         n2 = nint((eps2_max - eps2_min) / d_eps2)
         n4 = nint((eps4_max - eps4_min) / d_eps4)
         print '(a)', " ground-state search: E_pot = E_mac + E_shell + E_pair [MeV]"
@@ -120,21 +175,133 @@ program main
         print '(a, 2f8.3)', " minimum on the grid at eps2, eps4 = ", best
         eps2 = best(1)
         eps4 = best(2)
-    end if
+    end subroutine grid_search
 
-    call calculate(eps2, gamma_deg, eps3, eps4, eps6, .true., e_pot)
-    if (zpe) call add_zero_point(e_pot)
+    subroutine pattern_search()
+        ! Discrete minimisation of E_pot in (eps2, eps3, eps4, eps6) on the lattice eps = d_eps * i,
+        ! as FRDM2012 (Sec. 3, step 3). From each starting point: compute the 8 neighbours
+        ! x +- s e_k, move to the lowest one if it is below x, otherwise halve s (from
+        ! d_eps_start / d_eps down to 1). Computed points are cached, so overlapping paths are
+        ! free. Starting points: the input shape, (eps2, eps4) = (+-0.25, +-0.04) and spherical,
+        ! each with eps3 = 0 and 0.10 (eps6 = 0). eps3 >= 0 only, since E(-eps3) = E(eps3).
+        ! gamma is fixed at gamma_deg. The lowest local minimum is put in eps2, eps3, eps4, eps6.
+        ! 【日本語】
+        ! 【目的】(eps2, eps3, eps4, eps6) の刻み d_eps の格子上で E_pot の極小を探し,
+        ! いちばん低いものを基底状態の形として eps2, eps3, eps4, eps6 に入れる.
+        ! 【手順】1. 初期点: 入力の形, (eps2, eps4) = (+-0.25, +-0.04) と球形. それぞれ eps3 = 0 と 0.10.
+        !         2. 今の点 x から各軸 +-s の 8 近傍を計算し, x より低い最小の近傍へ移る.
+        !            低い近傍がなければ s を半分にし (d_eps_start -> ... -> d_eps), s = d_eps で
+        !            下がらなければそこが極小.
+        !         3. 計算した点は覚えておき (キャッシュ), 同じ点は計算し直さない.
+        ! eps3 は E(-eps3) = E(eps3) なので 0 以上だけを調べる. gamma は gamma_deg に固定.
+        integer, parameter :: max_start = 11
+        integer :: lo(4), hi(4), x(4), y(4), xb(4), x_glob(4), x_start(4, max_start)
+        integer :: s, s0, k, sgn, is, js, n_start, i_s2, i_s4, i_s3
+        real(dp) :: e_x, e_y, e_b, e_glob, starts(4, max_start)
+        logical :: dup
 
-    call system_clock(t2, t_rate, t_max)
-    if (t1 > t2) then
-        diff = t_max - t1 + t2 + 1
-        print '(a, f8.2, a)', " total time: ", real(diff, dp) / real(t_rate, dp), " s"
-    else
-        diff = t2 - t1
-        print '(a, f8.2, a)', " total time: ", real(diff, dp) / real(t_rate, dp), " s"
-    end if
+        lo = [nint(eps2_min / d_eps), 0, nint(eps4_min / d_eps), nint(eps6_min / d_eps)]
+        hi = [nint(eps2_max / d_eps), nint(eps3_max / d_eps), nint(eps4_max / d_eps), nint(eps6_max / d_eps)]
+        if (any(hi < lo)) stop "main: pattern_search needs min <= max for every eps"
+        s0 = max(1, nint(d_eps_start / d_eps))
 
-contains
+        ! starting points (rounded to the lattice and clipped to the range; duplicates removed)
+        n_start = 1
+        starts(:, 1) = [eps2, abs(eps3), eps4, eps6]
+        do i_s3 = 0, 1
+            do i_s2 = -1, 1, 2
+                do i_s4 = -1, 1, 2
+                    n_start = n_start + 1
+                    starts(:, n_start) = [0.25_dp * i_s2, 0.10_dp * i_s3, 0.04_dp * i_s4, 0.0_dp]
+                end do
+            end do
+            n_start = n_start + 1
+            starts(:, n_start) = [0.0_dp, 0.10_dp * i_s3, 0.0_dp, 0.0_dp]
+        end do
+        js = 0
+        do is = 1, n_start
+            x = min(max(nint(starts(:, is) / d_eps), lo), hi)
+            dup = .false.
+            do k = 1, js
+                if (all(x_start(:, k) == x)) dup = .true.
+            end do
+            if (dup) cycle
+            js = js + 1
+            x_start(:, js) = x
+        end do
+        n_start = js
+
+        allocate(c_x(4, 0), c_e(0))
+        n_eval = 0
+        print '(a)', " ground-state search (pattern search): E_pot = E_mac + E_shell + E_pair [MeV]"
+        print '(a, f6.3, a, f6.3, a, i3)', " step ", s0 * d_eps, " -> ", d_eps, ",  starting points: ", n_start
+        print '(a)', "     eps2     eps3     eps4     eps6        E_mac     E_s+p      E_pot"
+        e_glob = huge(1.0_dp)
+        x_glob = x_start(:, 1)
+        do is = 1, n_start
+            x = x_start(:, is)
+            print '(a, i3, a, 4f9.3)', " -- start ", is, " at ", x * d_eps
+            call energy_at(x, e_x)
+            s = s0
+            do
+                xb = x
+                e_b = e_x
+                do k = 1, 4
+                    if (lo(k) == hi(k)) cycle
+                    do sgn = -1, 1, 2
+                        y = x
+                        y(k) = x(k) + sgn * s
+                        if (y(k) < lo(k) .or. y(k) > hi(k)) cycle
+                        call energy_at(y, e_y)
+                        if (e_y < e_b) then
+                            e_b = e_y
+                            xb = y
+                        end if
+                    end do
+                end do
+                if (any(xb /= x)) then
+                    x = xb
+                    e_x = e_b
+                else if (s > 1) then
+                    s = max(1, s / 2)
+                else
+                    exit
+                end if
+            end do
+            print '(a, 4f9.3, a, f11.4)', " local minimum at", x * d_eps, "   E_pot ", e_x
+            if (e_x < e_glob) then
+                e_glob = e_x
+                x_glob = x
+            end if
+        end do
+        print '(a, i6)', " shapes computed: ", n_eval
+        print '(a, 4f8.3, a, f11.4)', " lowest minimum at eps2, eps3, eps4, eps6 = ", x_glob * d_eps, &
+              "   E_pot ", e_glob
+        eps2 = x_glob(1) * d_eps
+        eps3 = x_glob(2) * d_eps
+        eps4 = x_glob(3) * d_eps
+        eps6 = x_glob(4) * d_eps
+
+    end subroutine pattern_search
+
+    ! 【目的】格子点 xi の E_pot を返す. 計算済みならキャッシュの値を使い, なければ計算して覚える.
+    subroutine energy_at(xi, e)
+        ! E_pot at the lattice point xi (eps = d_eps * xi), from the cache of pattern_search if computed
+        integer, intent(in) :: xi(4)
+        real(dp), intent(out) :: e
+        integer :: i
+        do i = 1, size(c_e)
+            if (all(c_x(:, i) == xi)) then
+                e = c_e(i)
+                return
+            end if
+        end do
+        call calculate(xi(1) * d_eps, gamma_deg, xi(2) * d_eps, xi(3) * d_eps, xi(4) * d_eps, .false., e)
+        n_eval = n_eval + 1
+        print '(4f9.3, 3f11.4)', xi * d_eps, frldm%E_frldm, res%e_micro, e
+        c_x = reshape([c_x, xi], [4, size(c_e) + 1])
+        c_e = [c_e, e]
+    end subroutine energy_at
 
     subroutine add_zero_point(e_gs)
         ! E_zp = E_0,eps2 + E_0,gamma at the shape (eps2, gamma_deg, eps3, eps4, eps6), FRDM2012 Sec. 2.11.
