@@ -51,7 +51,7 @@ module shell_bcs_mod
     use iso_fortran_env, only: real64
     use constant_mod, only: pi, e2
     use nucleus_mod, only: nucleus_property
-    use ho_basis_mod, only: ho_basis_type, frequencies_from_eps_gamma, so_strength, diagonalize_hamiltonian
+    use ho_basis_mod, only: ho_basis_type, frequencies_from_eps_gamma, so_strength, eigenvalues_hamiltonian
     use potential_gh_mod, only: ellipsoid_shape, epsilon_shape, epsilon_shape_from, surface_quadrature, &
                                 gauss_legendre
     use micro_constant_mod, only: microscopic_variables, a_pot, N_bas, mi_p, C_s, r_mic, mi_r_mac
@@ -132,7 +132,7 @@ module shell_bcs_mod
             real(dp), allocatable :: xg(:), yg(:), zg(:)
             real(dp), allocatable :: Y(:,:,:), dYx(:,:,:), dYy(:,:,:), dYz(:,:,:), C(:,:,:)
             real(dp), allocatable :: T(:,:), Vm(:,:), Axy(:,:), Ayz(:,:), Azx(:,:)
-            complex(dp), allocatable :: H(:,:), U(:,:)
+            complex(dp), allocatable :: H(:,:)
 
             ngh = 44
             if (present(n_gh)) ngh = n_gh
@@ -163,19 +163,19 @@ module shell_bcs_mod
             ! single-particle spectra
             !---------------------------
             allocate(T(ns, ns), Vm(ns, ns), Axy(ns, ns), Ayz(ns, ns), Azx(ns, ns))
-            allocate(H(2 * ns, 2 * ns), U(2 * ns, 2 * ns))
+            allocate(H(2 * ns, 2 * ns))
             allocate(res%neutron%e(2 * ns), res%proton%e(2 * ns))
             call basis%kinetic_matrix(T)
 
             call basis%potential_matrix(-mv%V_n * Y, Vm)
             call basis%spin_orbit_matrices_by_parts(-mv%V_n * Y, Axy, Ayz, Azx)
             call basis%build_hamiltonian(T, Vm, Axy, Ayz, Azx, so_strength(mv%lambda_n), H)
-            call diagonalize_hamiltonian(H, res%neutron%e, U)
+            call eigenvalues_hamiltonian(H, res%neutron%e)
 
             call basis%potential_matrix(-mv%V_p * Y + mv%e_rho_c * C, Vm)
             call basis%spin_orbit_matrices_by_parts(-mv%V_p * Y, Axy, Ayz, Azx)
             call basis%build_hamiltonian(T, Vm, Axy, Ayz, Azx, so_strength(mv%lambda_p), H)
-            call diagonalize_hamiltonian(H, res%proton%e, U)
+            call eigenvalues_hamiltonian(H, res%proton%e)
 
             !---------------------------
             ! Strutinsky and pairing
