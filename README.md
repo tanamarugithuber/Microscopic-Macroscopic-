@@ -33,14 +33,15 @@ bash build.sh        # FFTW3 と LAPACK が必要
 ```
 &frldm_input
   Z = 94, N = 146,
-  eps2 = 0.22, gamma_deg = 0.0, eps4 = -0.05, eps6 = 0.04,
+  eps2 = 0.22, gamma_deg = 0.0, eps3 = 0.0, eps4 = -0.05, eps6 = 0.04,
   pairing = 'LN',          ! 'LN'（既定，FRDM2012）または 'BCS'
   n_gh = 44,               ! 一粒子問題の Gauss-Hermite 点数（各軸）
   use_grid = .false.,      ! .true. で B_1, B_3 を格子 + Hockney 法で計算（検算用）
   h = 0.5, n_times = 3,    ! そのときの格子間隔 [fm] と箱の大きさ
   search = .false.,        ! 基底状態の探索
   eps2_min = 0.0, eps2_max = 0.30, d_eps2 = 0.05,
-  eps4_min = -0.08, eps4_max = 0.08, d_eps4 = 0.04
+  eps4_min = -0.08, eps4_max = 0.08, d_eps4 = 0.04,
+  zpe = .true.             ! 零点エネルギーを足す
 /
 ```
 
@@ -94,14 +95,18 @@ graph TD;
     micro_constant_mod.f90-->shell_bcs_mod.f90;
     ho_basis_mod.f90-->shell_bcs_mod.f90;
     potential_gh_mod.f90-->shell_bcs_mod.f90;
+    nucleus_mod.f90-->zero_point_mod.f90;
+    micro_constant_mod.f90-->zero_point_mod.f90;
     frldm_mod.f90-->main.f90;
     shell_bcs_mod.f90-->main.f90;
+    zero_point_mod.f90-->main.f90;
 ```
 
 - 形状：shape_mod（FRDM の ε パラメータの形）を FRLDM と一粒子ポテンシャルの両方で使います．
 - FRLDM：frldm_mod が B_1, B_3 を形の表面積分で計算します（`use_grid` のときは grid_mod + calculate_potential_hockney）．
 - Shell+pairing：ho_basis_mod（三軸変形 HO 基底）と potential_gh_mod（求積点上の V1, VC）で一粒子準位を求め，shell_bcs_mod でシェル補正と対補正を計算します．
-- main が両方を呼んで合計します．
+- 零点エネルギー：zero_point_mod が慣性とかたさから E_zp を計算します．形をずらした E_pot は main の `add_zero_point` が集めます．
+- main がすべてを呼んで合計します．
 
 ### テストプログラム
 
@@ -115,6 +120,7 @@ graph TD;
     potential_gh_mod.f90-->test_potential_gh.f90;
     calculate_potential_hockney.f90-->test_hockney.f90;
     shell_bcs_mod.f90-->test_shell_bcs.f90;
+    zero_point_mod.f90-->test_zero_point.f90;
 ```
 
 ### 使わないファイル (not_use/)
@@ -130,7 +136,7 @@ FRLDM+Shell+BCS の計算に使わないファイルは not_use/ にまとめて
 FRDM2012 の ε パラメータ (ε2, γ, ε4, ε6)（Eqs. (17)–(25)）の形を，伸縮座標での Nilsson 等ポテンシャル面として作ります．
 
 - `epsilon_shape_from(R, eps2, gamma, eps3, eps4, eps6)`（γ はラジアン）で，体積 4πR³/3 の形を返します．
-- ε3 ≠ 0 のときは，重心の条件 ∫cosθ_t F⁻² dΩ = 0 を二分法で解いて ε1 を決めます（FRDM2012 p. 35 の Notes added in proof）．結果は `shape%eps1` に入ります．
+- ε3 ≠ 0 のときは，重心の条件 ∫cosθ_t F⁻² dΩ = 0 を二分法で解いて ε1 を決めます（FRDM2012 p. 35 の Notes added in proof）．結果は `shape%eps1` に入ります．詳しくは「[八重極変形 ε3 と重心の ε1](#八重極変形-ε3-と重心の-ε1)」を見てください．
 - どの形も x, y の鏡映について対称です．ε3 は z の鏡映対称性を破るので，体積・表面積分は 1/4 領域（x, y ≥ 0）で行います．
 - `eval(u, v, r, N)` で表面の点と法線 N = ∂r/∂u × ∂r/∂v，`inside(x)` で内外判定，`relative_area()` で B_s（Eq. 70），`volume()` で体積を返します．
 - ε4 = ε6 = 0 では `ellipsoid_from_eps_gamma` の楕円体と一致します．²⁴⁰Pu（ε2 = 0.22, ε4 = −0.05, ε6 = 0.04）の β2, β4, β6 = 0.237, 0.086, −0.024 は FRDM2012 の表と一致します．
@@ -239,13 +245,128 @@ gfortran -O2 -fopenmp constant_mod.f90 nucleus_mod.f90 shape_mod.f90 micro_const
 ./test_shell_bcs.exe
 ```
 
-### zero_point_mod.f90
+## 八重極変形 ε3 と重心の ε1
 
-零点エネルギー E_zp = E_0,ε2 + E_0,γ（FRDM2012 Sec. 2.11，Eqs. (112)–(118)）を計算します．
+FRDM2012 の形（Eqs. (17)–(25)）に，八重極変形 ε3 と，重心を原点に置くための ε1 を入れています．
 
-- E_0,λ = ½ 𝒦 ħc (C_λ / B_λ^irr)^{1/2}，𝒦 = 0.2475（`frK`）です．B^irr は非圧縮・渦なし流れの慣性（Eqs. (116), (117)）で，M0 = A m_nuc，R0 = r0 A^{1/3} を使います．
-- かたさ C は，等間隔 7 点 λ_gs + k h（k = −3, …, 3）の最小二乗放物線から求めます：C = [5(E₃ + E₋₃) − 3(E₁ + E₋₁) − 4E₀] / (42h²)．殻構造の凹凸をならした曲率なので，局所的な 2 階微分（7 点中心差分）とは違います．
-- E_pot を集めるループは main の `add_zero_point` にあります．
+### 形の式
+
+伸縮座標 ξ_k = √f_k x_k の極座標 (ρ_t, θ_t, φ_t) で，表面は ρ_t² F(θ_t, φ_t) = C² です．
+
+```
+F = f_x n_x² + f_y n_y² + f_z n_z² + 2ε1 P1(cosθ_t) + 2ε3 P3(cosθ_t) + 2ε4 V4 + 2ε6 P6(cosθ_t)
+```
+
+- P3 は z → −z で符号を変えるので，ε3 > 0 では +z 側がふくらみ，−z 側がとがった梨の形になります．ε3 と −ε3 は z を反転した同じ形なので，エネルギーも同じです．
+- ε3 だけを入れると重心が原点からずれます．P1(cosθ_t) = cosθ_t は形をほぼ平行移動させる項なので，ε1 で重心を原点に戻します．
+- C は体積が 4πR³/3 になるように決めます（Eq. 25）．
+
+### ε1 の決め方（FRDM2012 p. 35 の Notes added in proof）
+
+重心は ∫z dV = det(D) f_z^{−1/2} C⁴/4 · ∫cosθ_t F⁻² dΩ なので，次の式を解きます．
+
+```
+M(ε1) = ∫ cosθ_t F(θ_t, φ_t)⁻² dΩ = 0
+```
+
+- M は C と R によらないので，体積を合わせる前に解けます．
+- dM/dε1 = −4∫cos²θ_t F⁻³ dΩ < 0 なので，M は単調減少で，解は 1 つです．
+- `epsilon_shape_from` は [−0.02, 0.02] から区間を倍々に広げて符号が変わる区間を探し，二分法で解きます（幅 1e−14 まで）．
+- ε3 = 0 なら ε1 = 0 のままです．入力では ε1 を与えません．main は求めた ε1 を「eps1 (centre of mass at the origin)」として表示します．
+
+### 対称性と積分
+
+- ε3 ≠ 0 の形も x, y の各面については鏡映対称ですが，z の鏡映対称性は破れます．
+- そのため，体積・表面積・FRLDM の B_1, B_3（`surface_sums`）の積分は，x, y ≥ 0 の 1/4 領域（θ ∈ [0, π]，φ ∈ [0, π/2]）で行って 4 倍します．以前の 1/8 領域（z ≥ 0 も仮定）は使っていません．
+- 一粒子ポテンシャル（`q%on_grid`）は，ε3 = 0 のときだけ 1/8 の点を計算して鏡映で埋めます（d2h）．ε3 ≠ 0 では全点を計算するので，その部分の時間は約 8 倍になります．
+- 振動子基底は (ε2, γ) だけで決めます（ε3 はポテンシャルの側だけに入ります）．パリティの混ざりはハミルトニアンの対角化で自然に入ります．
+
+### 確認したこと
+
+- ²⁰⁸Pb（ε3 = 0）の M_th は ε3 を入れる前と同じでした．
+- ²²⁴Ra（ε2 = 0.12，ε4 = −0.04）では，ε3 = ±0.08 で M_th が 20.28 → 18.83 MeV に下がり，+ε3 と −ε3 で同じ値になります．
+- test_shape で，ε1 を入れると重心が 1e−10 fm 以内で原点に来ること（入れないと原点からずれること），ε3 → −ε3 で ε1 の符号が反転すること，1/4 領域の積分が全表面の積分と一致することを確かめています．
+
+### 使い方
+
+```
+&frldm_input
+  Z = 88, N = 136,
+  eps2 = 0.12, eps3 = 0.08, eps4 = -0.04,
+/
+```
+
+基底状態の探索（`search = .true.`）は今は (ε2, ε4) だけで，ε3 は入力の値に固定です．
+
+## 零点エネルギー (zero_point_mod.f90，main の add_zero_point)
+
+基底状態の形 ε_gs で求めた E_pot = E_mac + E_s+p はポテンシャル曲面の谷底の値です．形は量子力学的にゆらぐので，実際の基底状態はそこから零点振動のエネルギーだけ上にあります．FRDM2012（Sec. 2.11，Eqs. (112)–(118)）はこれを
+
+```
+M_th = E_mac(ε_gs) + E_s+p(ε_gs) + E_zp,    E_zp = E_0,ε2 + E_0,γ
+```
+
+として足します．ε2 方向（核分裂方向）と γ 方向（三軸非対称方向）の 2 つの振動を考え，ε3, ε4, ε6 方向は入れません．
+
+### 式
+
+基底状態のまわりで E(λ) ≈ E(λ_gs) + ½C_λ(λ − λ_gs)²（λ = ε2 または γ）とすると，1 次元の調和振動子になります．
+
+```
+E_0,λ = ½ ħω_λ,    ħω_λ = 𝒦 ħc (C_λ / B_λ^irr)^{1/2},    𝒦 = 0.2475（frK）
+B_ε2^irr = (2/15) (1 + 2/9 ε2²) / (1 − 2/3 ε2)² · (1 − 1/3 ε2² − 2/27 ε2³)^{−4/3} · M0 R0²     (116)
+B_γ^irr  = (2/15) [(1 − 2/3 ε2)/(1 + 1/3 ε2)]^{2/3} · [ln((1 + 1/3 ε2)/(1 − 2/3 ε2))]² · M0 R0²  (117)
+```
+
+- B^irr は非圧縮・渦なし流れの慣性です．本当の慣性はこれより大きく，その分を 1 つの定数 𝒦 で表します（B = B^irr/𝒦²）．
+- M0 = A m_nuc（`nucleus%mass`），R0 = r0 A^{1/3}（`nucleus%R_a`）です．B は MeV fm² で，ħc を掛けると ħω が MeV で出ます．
+- 球では B_ε2^irr = (2/15) M0 R0²，B_γ^irr → 0 になります（γ は角度なので，動く量が ε2 γ に比例するため）．
+
+### かたさ C の求め方（Eq. (118) とその下の文）
+
+基底状態から等間隔に 7 点 λ_gs + k h（k = −3, …, 3）をとり，E_pot に最小二乗で放物線をフィットして C = 2 ×（2 次の係数）とします．等間隔なので重み付き和で書けます．
+
+```
+C = [5(E₃ + E₋₃) + 0(E₂ + E₋₂) − 3(E₁ + E₋₁) − 4E₀] / (42h²)
+```
+
+- 殻構造による細かい凹凸をならした曲率で，局所的な 2 階微分（7 点中心差分）とは違います．
+- ε2 方向は h = 0.05，γ 方向は h = 5°（微分はラジアンで行います）です．ずらすのはその変数だけで，ほかの変形は基底状態の値に固定します．
+- C ≤ 0（極小になっていない）のときは振動数が決まらないので停止します．
+
+### 手順（main の add_zero_point）
+
+1. 最後の形（入力の形，または `search` で見つけた形）で E_pot を計算します．このときの E_mac と E_s+p を控えておきます．
+2. ε2 を ±0.05, ±0.10, ±0.15 ずらした 6 点で E_pot を計算し，7 点から `zero_eps2%cal_energy` で E_0,ε2 を求めます．
+3. ε2 ≥ 0.17 なら，γ を ±5°, ±10°, ±15° ずらした 6 点で同じように `zero_gamma%cal_energy` で E_0,γ を求めます．ε2 < 0.17 では，球に近く γ 方向の曲面が求めにくいので，E_0,γ = E_0,ε2 とします．
+4. 次のように表示します（²⁰⁸Pb の例）．
+
+```
+ --- zero-point energy (Sec. 2.11) [MeV]
+   E_pot(eps2 - 0.15 .. eps2 + 0.15)     :   -14.0765  -17.2285  -21.1505  -22.6370  -21.0528  -16.0063   -8.9127
+   E_0,eps2              :       0.6870
+   E_0,gamma             :       0.6870   (= E_0,eps2, eps2 < 0.17)
+   E_zp                  :       1.3739
+ --- result with the zero-point energy [MeV]
+   E_mac (ground state)  :      -8.7002
+   E_s+p (ground state)  :     -13.9368
+   E_zp                  :       1.3739
+   mass excess M_th      :     -21.2631
+```
+
+形を 6 点（γ も計算するときは 12 点）余分に計算するので，時間は 7〜13 倍になります．`zpe = .false.` で零点エネルギーを足さずに計算します．
+
+### プログラムの構成
+
+- `zero_point` は抽象型で，`cal_energy(nucleus, eps2, h, E_gs_lambda(7), E_0_lambda)` を deferred で持ちます．`zero_eps2` と `zero_gamma` がそれを拡張し，慣性の式 (116), (117) だけが違います．
+- 公開している関数は `B_eps2_irr(nucleus, eps2)`，`B_gamma_irr(nucleus, eps2)`，`stiffness_fit(E, h)` です．
+
+### 確認したこと
+
+- `stiffness_fit` は任意の放物線で C = 2a を厳密に返し，x⁴ を加えると最小二乗の値になります（test_zero_point）．
+- B_ε2^irr(0) = (2/15) M0 R0²，小さい ε2 で B_γ^irr ≈ (2/15) ε2² M0 R0² になります．
+- ²⁰⁸Pb の E_zp = 1.37 MeV で，FRDM2012 の表の E_mic^FL − E_s+p = 1.34 MeV（球なので E_zp にあたる）と 0.03 MeV で合います．M_th は −21.26 MeV（表の M_th^FL は −21.31）です．
+- ²⁴⁰Pu の M_th は 50.90 MeV で，表の 50.69 MeV より 0.2 MeV 高く出ます．ずらすときに ε4, ε6 を固定するか最小化し直すか，M0 の定義などが原因の候補ですが，まだ分かっていません．
 
 ```bash
 gfortran -O2 constant_mod.f90 nucleus_mod.f90 micro_constant_mod.f90 zero_point_mod.f90 test_zero_point.f90 -o test_zero_point.exe
@@ -255,6 +376,7 @@ gfortran -O2 constant_mod.f90 nucleus_mod.f90 micro_constant_mod.f90 zero_point_
 ## 残っていること
 
 - 零点エネルギー：基底状態が三軸非対称な核で慣性を補間する処理（FRDM2012 Sec. 2.11）は入れていません．
+- 零点エネルギー：²⁴⁰Pu で表より 0.2 MeV 高い原因は分かっていません．
 - 基底状態の探索は (ε2, ε4) の格子探索だけです．ε3, ε6, γ を含む探索や最小値の補間はしていません．
 - D2h 対称性によるハミルトニアンのブロック対角化（ho_basis_mod の TODO）．速くなりますが結果は変わりません．
 
@@ -272,3 +394,5 @@ gfortran -O2 constant_mod.f90 nucleus_mod.f90 micro_constant_mod.f90 zero_point_
 * 2026/5/14: [依存関係を明記]
 * 2026/10/12: [main を FRLDM+Shell+LN に対応，ε4, ε6 の形，B_1, B_3 の表面積分，Lipkin–Nogami，スピン軌道項の部分積分]
 * 2026/10/15: [Fortran のオブジェクト指向プログラミングの解説書 (docs/fortran_oop_guide.pdf) を追加]
+* 2026/10/18: [八重極変形 ε3 と重心の ε1，振動子基底の打ち切りの修正，零点エネルギー (zero_point_mod)]
+* 2026/10/24: [README に ε3 と零点エネルギーの説明を追加]
