@@ -86,6 +86,8 @@ program main
     real(dp) :: eps1 = 0.0_dp, eps3 = 0.0_dp
     character(8) :: pairing = 'LN'
     logical :: use_grid = .false., search = .false., zpe = .true.
+    logical :: make_table = .false.
+    ! data_table の作成 
     integer :: t1, t2, t_rate, t_max, diff
     character(8) :: search_method = 'pattern'
     real(dp) :: eps2_min = -0.30_dp, eps2_max = 0.45_dp, d_eps2 = 0.05_dp
@@ -107,6 +109,9 @@ program main
     type(frldm_variables) :: frldm
     type(microscopic_variables) :: mv
     type(shell_bcs_result) :: res
+
+    character(256) :: Z_num, N_num
+    real(dp) :: E_bind, B_A, E_zp, M_th
 
     call system_clock(t1)
 
@@ -137,7 +142,35 @@ program main
     end if
 
     call calculate(eps2, gamma_deg, eps3, eps4, eps6, .true., e_pot)
-    if (zpe) call add_zero_point(e_pot)
+    if (zpe) call add_zero_point(e_pot, E_zp, M_th, E_bind, B_A)
+
+    ! Output the data to a file
+    write(*,*) "Writing results to text file..."
+    write(Z_num, '(I3.3)') Z
+    write(N_num, '(I3.3)') N
+    open(unit=10, file="data/results"//trim(Z_num)//"_"//trim(N_num)//".txt", status="replace", action="write")
+        write(10,*) "Z = ", Z
+        write(10,*) " N = ", N
+        write(10,*) " eps2 = ", eps2
+        write(10,*) " eps3 = ", eps3
+        write(10,*) " eps4 = ", eps4
+        write(10,*) " eps6 = ", eps6
+        write(10,*) " E_mac = ", frldm%E_frldm
+        write(10,*) " E_shell + E_pair = ", res%e_micro
+        write(10,*) " E_zp = ", E_zp
+        write(10,*) " M_th = ", M_th
+        write(10,*) " B = ", E_bind
+        write(10,*) " B / A = ", B_A
+    close(10)
+    if (make_table) then
+        write(unit=10, file="data/data_table.txt", status="append", action="write")
+            write(10,*) Z, N, eps2, eps3, eps4, eps6, frldm%E_frldm, res%e_micro, E_zp, M_th, E_bind, B_A
+        close(10)
+    end if
+
+    write(*,*) "Results written to data/results"//trim(Z_num)//"_"//trim(N_num)//".txt"
+    if (make_table) write(*,*) "Results appended to data/data_table.txt"
+    write(*,*) "Finished to calculate the mass of the nucleus."
 
     call system_clock(t2, t_rate, t_max)
     if (t1 > t2) then
@@ -303,7 +336,7 @@ contains
         c_e = [c_e, e]
     end subroutine energy_at
 
-    subroutine add_zero_point(e_gs)
+    subroutine add_zero_point(e_gs, E_zp, M_th, E_bind, B_A)
         ! E_zp = E_0,eps2 + E_0,gamma at the shape (eps2, gamma_deg, eps3, eps4, eps6), FRDM2012 Sec. 2.11.
         ! E_pot at lambda_gs + k h (k = -3..3, h = 0.05 for eps2, 5 deg for gamma), other
         ! deformations fixed; C from the least-squares parabola (zero_point_mod).
@@ -323,7 +356,8 @@ contains
         type(nucleus_property) :: nuc
         type(zero_eps2) :: zp_eps2
         type(zero_gamma) :: zp_gamma
-        real(dp) :: E7(7), e0_eps2, e0_gamma, E_zp, M_th, e_mac_gs, e_sp_gs
+        real(dp) :: E7(7), e0_eps2, e0_gamma, e_mac_gs, e_sp_gs
+        real(dp), intent(out) :: E_bind, B_A, M_th, E_zp
         integer :: k
 
         e_mac_gs = frldm%E_frldm
@@ -354,6 +388,8 @@ contains
 
         E_zp = e0_eps2 + e0_gamma
         M_th = e_gs + E_zp
+        E_bind = M_H * Z + M_n * N - M_th
+        B_A = E_bind / (Z + N)
         print '(a, f12.4)', "   E_0,eps2              : ", e0_eps2
         if (eps2 < eps2_gamma_min) then
             print '(a, f12.4, a)', "   E_0,gamma             : ", e0_gamma, "   (= E_0,eps2, eps2 < 0.17)"
@@ -366,8 +402,8 @@ contains
         print '(a, f12.4)', "   E_s+p (ground state)  : ", e_sp_gs
         print '(a, f12.4)', "   E_zp                  : ", E_zp
         print '(a, f12.4)', "   mass excess M_th      : ", M_th
-        print '(a, f12.4)', "   binding energy B      : ", M_H * Z + M_n * N - M_th
-        print '(a, f12.4)', "   B / A                 : ", (M_H * Z + M_n * N - M_th) / (Z + N)
+        print '(a, f12.4)', "   binding energy B      : ", E_bind
+        print '(a, f12.4)', "   B / A                 : ", B_A
     end subroutine add_zero_point
 
     subroutine calculate(e2_, gam_, e3_, e4_, e6_, verbose, e_pot)
