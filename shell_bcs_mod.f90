@@ -592,9 +592,10 @@ module shell_bcs_mod
             integer, intent(out) :: N1, N2
             real(dp), intent(in), optional :: delta_odd
             real(dp), allocatable :: ek(:), nk(:), eps(:), v2(:), u2(:)
-            real(dp) :: y1, y2, n_int, d, at, aa, bb, cc, l2_ave, lo, hi, f_ln
+            real(dp) :: y1, y2, n_int, d, at, aa, bb, cc, l2_ave, lo, hi, f_ln, f_prev, l2_max
             integer :: kF, it
-            logical :: odd
+            integer, parameter :: n_scan = 200
+            logical :: odd, bracketed, restart
 
             odd = mod(n_part, 2) == 1
             kF = (n_part + 1) / 2
@@ -625,16 +626,47 @@ module shell_bcs_mod
             ! solved self-consistently in v_k^2 (inner_solution). As delta -> 0 the lambda2 of
             ! Eq. (98) diverges, so F > 0 for small lambda2 (collapsed: F = +inf) and F < 0 for
             ! large lambda2; the solution always has delta > 0.
+            ! Very light nuclei: with a window of a few (near-)degenerate levels the iteration
+            ! started from the previous v_k^2 can fall into the collapsed solution for every
+            ! lambda2 tried. Then lambda2 is scanned on [0, 2 max(<lambda2>, G)], each point
+            ! iterated from the sharp occupations, and the bisection does the same (restart).
+            ! If there is still no sign change, BCS (lambda2 = 0) is used with a warning.
             allocate(eps(N1:N2), v2(N1:N2), u2(N1:N2))
             v2 = 0.5_dp * nk
+            restart = .false.
             lo = 0.0_dp
             hi = max(l2_ave, G)
+            bracketed = .false.
             do it = 1, 60
-                if (ln_function(hi) < 0.0_dp) exit
+                if (ln_function(hi) < 0.0_dp) then
+                    bracketed = .true.
+                    exit
+                end if
                 lo = hi
                 hi = 2.0_dp * hi
             end do
-            if (it > 60) stop "ln_correction: lambda2 not bracketed"
+            if (.not. bracketed) then
+                restart = .true.
+                l2_max = 2.0_dp * max(l2_ave, G)
+                f_prev = ln_function(0.0_dp)
+                do it = 1, n_scan
+                    hi = l2_max * it / n_scan
+                    f_ln = ln_function(hi)
+                    if (f_prev > 0.0_dp .and. f_ln <= 0.0_dp) then
+                        lo = l2_max * (it - 1) / n_scan
+                        bracketed = .true.
+                        exit
+                    end if
+                    f_prev = f_ln
+                end do
+            end if
+            if (.not. bracketed) then
+                print '(a, i4, a)', " ln_correction: no Lipkin-Nogami solution for ", n_part, &
+                                    " nucleons, BCS used (lambda2 = 0)"
+                call bcs_correction(e, n_part, rho, delta_G, G, delta, lambda, N1, N2, e_pc, e_pc_ave, delta_odd)
+                lambda2 = 0.0_dp
+                return
+            end if
             do it = 1, 100
                 lambda2 = 0.5_dp * (lo + hi)
                 if (ln_function(lambda2) > 0.0_dp) then
@@ -682,10 +714,12 @@ module shell_bcs_mod
             ! 【目的】lambda2 = l2 を固定して, ずらした準位の BCS 方程式を v_k^2 について反復で解く.
             subroutine inner_solution(l2)
                 ! BCS equations for eps_k = e_k + (4 l2 - G) v_k^2, iterated in v_k^2
-                ! (starts from the v_k^2 of the previous call)
+                ! (starts from the v_k^2 of the previous call, or from the sharp occupations
+                ! when restart is set)
                 real(dp), intent(in) :: l2
                 real(dp) :: v2_new(size(v2))
                 integer :: j
+                if (restart) v2 = 0.5_dp * nk
                 do j = 1, 500
                     eps = ek(N1:N2) + (4.0_dp * l2 - G) * v2
                     call solve_gap(eps, n_int, G, delta, lambda)
