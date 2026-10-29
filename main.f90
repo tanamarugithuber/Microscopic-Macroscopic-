@@ -61,7 +61,7 @@ program main
     use frldm_mod, only: frldm_variables, M_H, M_n
     use micro_constant_mod, only: microscopic_variables
     use shell_bcs_mod, only: shell_bcs_result, shell_bcs_calculation, nucleon_correction
-    use zero_point_mod, only: zero_eps2, zero_gamma
+    use zero_point_mod, only: zero_eps2, zero_gamma, stiffness_fit
 
     implicit none
     integer, parameter :: dp = real64
@@ -158,7 +158,12 @@ program main
     write(*,*) "Writing results to text file..."
     write(Z_num, '(I3.3)') Z
     write(N_num, '(I3.3)') N
-    open(newunit=unit, file="data/results"//trim(Z_num)//"_"//trim(N_num)//".txt", status="replace", action="write")
+    ! the files go to data/ under the current directory; if it does not exist, nothing is written
+    open(newunit=unit, file="data/results"//trim(Z_num)//"_"//trim(N_num)//".txt", status="replace", &
+         action="write", iostat=ios)
+    if (ios /= 0) then
+        write(*,*) "warning: cannot open data/results"//trim(Z_num)//"_"//trim(N_num)//".txt (no data directory?)"
+    else
         write(unit,*) "Z = ", Z
         write(unit,*) " N = ", N
         write(unit,*) " eps2 = ", eps2
@@ -171,15 +176,21 @@ program main
         write(unit,*) " M_th = ", M_th
         write(unit,*) " B = ", E_bind
         write(unit,*) " B / A = ", B_A
-    close(unit)
-    if (make_table) then
-        open(newunit=unit, file="data/data_table.txt", status="unknown", position="append", action="write")
-            write(unit,*) Z, N, eps2, eps3, eps4, eps6, e_mac_out, e_sp_out, E_zp, M_th, E_bind, B_A
         close(unit)
+        write(*,*) "Results written to data/results"//trim(Z_num)//"_"//trim(N_num)//".txt"
+    end if
+    if (make_table) then
+        open(newunit=unit, file="data/data_table.txt", status="unknown", position="append", action="write", &
+             iostat=ios)
+        if (ios /= 0) then
+            write(*,*) "warning: cannot open data/data_table.txt (no data directory?)"
+        else
+            write(unit,*) Z, N, eps2, eps3, eps4, eps6, e_mac_out, e_sp_out, E_zp, M_th, E_bind, B_A
+            close(unit)
+            write(*,*) "Results appended to data/data_table.txt"
+        end if
     end if
 
-    write(*,*) "Results written to data/results"//trim(Z_num)//"_"//trim(N_num)//".txt"
-    if (make_table) write(*,*) "Results appended to data/data_table.txt"
     write(*,*) "Finished to calculate the mass of the nucleus."
 
     call system_clock(t2, t_rate, t_max)
@@ -352,6 +363,8 @@ contains
         ! deformations fixed; C from the least-squares parabola (zero_point_mod).
         ! eps2 < 0.17: E_0,gamma = E_0,eps2 (the gamma curvature is not computed).
         ! Triaxial ground states (interpolation of the inertia, Sec. 2.11) are not treated.
+        ! The shape is not a minimum when the fitted stiffness C <= 0 (light, soft nuclei):
+        ! then E_0,eps2 = 0, or E_0,gamma = E_0,eps2 as for eps2 < 0.17, with a warning.
         ! E_mac and E_s+p of the ground state are taken from the last call of calculate
         ! (the one that gave e_gs) before the scan overwrites them.
         ! 【日本語】
@@ -360,6 +373,8 @@ contains
         !         2. 基底状態の e_gs と合わせた 7 点から zero_eps2 で E_0,eps2.
         !         3. eps2 >= 0.17 なら gamma を +-5, +-10, +-15 度ずらして同様に E_0,gamma.
         !            eps2 < 0.17 なら E_0,gamma = E_0,eps2 (FRDM2012 2.11 節).
+        ! かたさ C <= 0 (その方向で極小になっていない. 軽くやわらかい核で起こる) のときは止めずに
+        ! 警告を出し, eps2 方向は E_0,eps2 = 0, gamma 方向は E_0,gamma = E_0,eps2 とする.
         ! 基底状態の E_mac, E_s+p は, ずらした形の計算で上書きされる前に控えておく.
         real(dp), intent(in) :: e_gs
         real(dp), parameter :: h_eps = 0.05_dp, h_gam_deg = 5.0_dp, eps2_gamma_min = 0.17_dp
@@ -382,9 +397,14 @@ contains
         do k = -3, 3
             if (k /= 0) call calculate(eps2 + k * h_eps, gamma_deg, eps3, eps4, eps6, .false., E7(k + 4))
         end do
-        call zp_eps2%cal_energy(nuc, eps2, h_eps, E7, e0_eps2)
         print '(a)', " --- zero-point energy (Sec. 2.11) [MeV]"
         print '(a, 7f10.4)', "   E_pot(eps2 - 0.15 .. eps2 + 0.15)     : ", E7
+        if (stiffness_fit(E7, h_eps) > 0.0_dp) then
+            call zp_eps2%cal_energy(nuc, eps2, h_eps, E7, e0_eps2)
+        else
+            print '(a)', "   warning: C_eps2 <= 0, the shape is not a minimum in eps2; E_0,eps2 = 0"
+            e0_eps2 = 0.0_dp
+        end if
 
         if (eps2 < eps2_gamma_min) then
             e0_gamma = e0_eps2
@@ -392,8 +412,13 @@ contains
             do k = -3, 3
                 if (k /= 0) call calculate(eps2, gamma_deg + k * h_gam_deg, eps3, eps4, eps6, .false., E7(k + 4))
             end do
-            call zp_gamma%cal_energy(nuc, eps2, h_gam_deg * pi / 180.0_dp, E7, e0_gamma)
             print '(a, 7f10.4)', "   E_pot(gamma - 15 .. gamma + 15 deg)   : ", E7
+            if (stiffness_fit(E7, h_gam_deg * pi / 180.0_dp) > 0.0_dp) then
+                call zp_gamma%cal_energy(nuc, eps2, h_gam_deg * pi / 180.0_dp, E7, e0_gamma)
+            else
+                print '(a)', "   warning: C_gamma <= 0, the shape is not a minimum in gamma; E_0,gamma = E_0,eps2"
+                e0_gamma = e0_eps2
+            end if
         end if
 
         E_zp = e0_eps2 + e0_gamma
